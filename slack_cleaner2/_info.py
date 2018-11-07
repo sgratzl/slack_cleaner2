@@ -2,6 +2,6 @@
 """metadata module"""
 
 __author__ = """Samuel Gratzl"""
-__email__ = 'samuel-gratzl@gmx.at'
+__email__ = 'sam@sgratzl.com'
 __license__ = 'MIT License'
 __version__ = '1.0.1'

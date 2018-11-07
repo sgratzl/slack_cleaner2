@@ -1,6 +1,6 @@
 FROM python:3.6-alpine
 
-LABEL maintainer="Samuel Gratzl <samuel_gratzl@gmx.at>"
+LABEL maintainer="Samuel Gratzl <sam@sgratzl.com>"
 
 VOLUME "/backup"
 WORKDIR /backup

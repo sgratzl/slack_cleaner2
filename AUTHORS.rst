@@ -5,7 +5,7 @@ Credits
 Development Lead
 ----------------
 
-* Samuel Gratzl <samuel-gratzl@gmx.at>
+* Samuel Gratzl <sam@sgratzl.com>
 
 Contributors
 ------------
