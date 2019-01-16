@@ -55,7 +55,7 @@ class SlackCleaner(object):
   list of channel+group+mpim+ims
   """
 
-  def __init__(self, token, sleep_for=0, log_to_file=False):
+  def __init__(self, token, sleep_for=0, log_to_file=False, slacker=None, session=None):
     """
     :param token: the slack token, see README.md for details
     :type token: str
@@ -63,6 +63,10 @@ class SlackCleaner(object):
     :type sleep_for: float
     :param log_to_file: enable logging to file
     :type log_to_file: bool
+    :param slacker: optional slacker instance for better customization
+    :type slacker: Slacker
+    :param session: optional session instance for better customization
+    :type session: Session
     """
 
     self.log = SlackLogger(log_to_file, sleep_for)
@@ -70,12 +74,13 @@ class SlackCleaner(object):
 
     self.log.debug('start')
 
-    with Session() as session:
-      slack = Slacker(token, session=session)
+    if slacker:
+      self.api = slacker
+    else:
+      slack = Slacker(token, session=session if session else Session())
       if hasattr(slack, 'rate_limit_retries'):
         slack.rate_limit_retries = 2
-
-    self.api = slack
+      self.api = slack
 
     self.users = [SlackUser(m, self) for m in _safe_list(slack.users.list(), 'members')]
     self.log.debug('collected users %s', self.users)
