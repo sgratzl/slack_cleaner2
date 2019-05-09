@@ -99,7 +99,7 @@ class SlackCleaner(object):
 
     self.groups = [
       SlackChannel(m, [self.user[u] for u in _safe_attr(slack.conversations.members(m['id']), 'members')], slack.conversations, self)
-      for m in _safe_list(slack.conversations.list(type='private_channel'), 'conversations')
+      for m in _safe_list(slack.conversations.list(types='private_channel'), 'conversations')
     ]
     self.log.debug('collected groups %s', self.groups)
 
