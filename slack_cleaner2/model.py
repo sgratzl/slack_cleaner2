@@ -185,7 +185,10 @@ class SlackChannel(object):
     oldest = after
     has_more = True
     while has_more:
-      res = self.api.history(self.id, latest, oldest, count=1000).body
+      if self.api == self._slack.api.conversations:
+        res = self.api.history(self.id, latest, oldest, limit=1000).body
+      else:
+        res = self.api.history(self.id, latest, oldest, count=1000).body
       if not res['ok']:
         return
       messages = res['messages']
