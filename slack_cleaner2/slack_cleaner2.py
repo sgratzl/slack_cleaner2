@@ -96,16 +96,19 @@ class SlackCleaner(object):
       for m in _safe_list(slack.channels.list(), 'channels')
     ]
     self.log.debug('collected channels %s', self.channels)
+
     self.groups = [
-      SlackChannel(m, [self.user[u] for u in m['members']], slack.groups, self)
-      for m in _safe_list(slack.groups.list(), 'groups')
+      SlackChannel(m, [self.user[u] for u in _safe_attr(slack.conversations.members(m['id']), 'members')], slack.conversations, self)
+      for m in _safe_list(slack.conversations.list(type='private_channel'), 'conversations')
     ]
     self.log.debug('collected groups %s', self.groups)
+
     self.mpim = [
       SlackChannel(m, [self.user[u] for u in m['members']], slack.mpim, self)
       for m in _safe_list(slack.mpim.list(), 'groups')
     ]
     self.log.debug('collected mpim %s', self.mpim)
+
     self.ims = [
       SlackDirectMessage(m, self.user[m['user']], slack.im, self)
       for m in _safe_list(slack.im.list(), 'ims')
