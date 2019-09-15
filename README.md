@@ -74,8 +74,8 @@ change version in `slack_cleaner2/_info.py`
 
 [mit-image]: https://img.shields.io/badge/License-MIT-yellow.svg
 [mit-url]: https://opensource.org/licenses/MIT
-[ci-image]: https://circleci.com/gh/sgratzl/slack_cleaner/tree/develop.svg?style=shield
-[ci-url]: https://circleci.com/gh/sgratzl/slack_cleaner/tree/develop
+[ci-image]: https://circleci.com/gh/sgratzl/slack_cleaner2.svg?style=shield
+[ci-url]: https://circleci.com/gh/sgratzl/slack_cleaner2
 [pypi-image]: https://pypip.in/version/slack_cleaner2/badge.svg
 [pypi-url]: https://pypi.python.org/pypi/slack_cleaner2/
 [docs-image]: https://readthedocs.org/projects/slack-cleaner2/badge/?version=latest
