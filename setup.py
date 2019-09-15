@@ -1,42 +1,59 @@
-import re
-import sys
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-pkg_file = open("slack_cleaner/__init__.py").read()
-metadata = dict(re.findall("__([a-z]+)__\s*=\s*'([^']+)'", pkg_file))
-description = open('README.md').read()
+"""The setup script."""
 
 from setuptools import setup, find_packages
 
-install_requires = []
+with open('README.rst') as readme_file:
+  readme = readme_file.read()
+
+with open('HISTORY.rst') as history_file:
+  history = history_file.read()
+
+with open('requirements.txt') as req:
+  requirements = req.read().split('\n')
+
+info_ns = {}
+with open('slack_cleaner2/_info.py') as f:
+  exec(f.read(), {}, info_ns)
+
+setup_requirements = ['pytest-runner']
+
+test_requirements = ['pytest']
 
 setup(
-    name='slack-cleaner',
-    description='Bulk delete messages/files on Slack.',
-    packages=find_packages(),
-    author=metadata['author'],
-    author_email=metadata['authoremail'],
-    version=metadata['version'],
-    url='https://github.com/kfei/slack-cleaner',
-    license="MIT",
-    keywords="slack, clean, delete, message, file",
-    long_description=description,
-    classifiers=[
-        'Development Status :: 5 - Production/Stable',
-        'Intended Audience :: Developers',
-        'License :: OSI Approved :: MIT License',
-        'Operating System :: OS Independent',
-        'Programming Language :: Python',
+  author=info_ns['__author__'],
+  author_email=info_ns['__email__'],
+  classifiers=[
+    'Development Status :: 2 - Pre-Alpha',
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: MIT License',
+    'Natural Language :: English',
+    "Programming Language :: Python :: 2",
+    'Programming Language :: Python :: 2.7',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.4',
+    'Programming Language :: Python :: 3.5',
+    'Programming Language :: Python :: 3.6',
+  ],
+  description="Python Boilerplate contains all the boilerplate you need to create a Python package.",
+  entry_points={
+    'console_scripts': [
+      'slack-cleaner=slack_cleaner2.cli:main',
     ],
-
-    install_requires=[
-        'setuptools',
-        'slacker>=0.13',
-        'colorama',
-        ] + install_requires,
-
-    entry_points={
-        'console_scripts': [
-            'slack-cleaner = slack_cleaner.cli:main'
-        ]
-    }
+  },
+  install_requires=requirements,
+  license=info_ns['__license__'],
+  long_description=readme + '\n\n' + history,
+  include_package_data=True,
+  keywords='slack_cleaner2',
+  name='slack_cleaner2',
+  packages=find_packages(include=['slack_cleaner2']),
+  setup_requires=setup_requirements,
+  test_suite='tests',
+  tests_require=test_requirements,
+  url='https://github.com/sgratzl/slack_cleaner2',
+  version=info_ns['__version__'],
+  zip_safe=False,
 )

@@ -1,15 +1,17 @@
-FROM python:2.7-alpine
+FROM python:3.6-alpine
 
-LABEL maintainer="Samuel Gratzl <samuel_gratzl@gmx.at>"
+LABEL maintainer="Samuel Gratzl <sam@sgratzl.com>"
 
-VOLUME ["/backup"]
+VOLUME "/backup"
 WORKDIR /backup
-ENTRYPOINT ["/bin/bash"]
+CMD ["python", "-i", "-c", "\"from slack_cleaner2 import *\""]
 
 RUN apk add --update bash && rm -rf /var/cache/apk/*
 # for better layers
-RUN pip install slacker colorama
+ADD ./requirements* /data/
+RUN pip --no-cache-dir install -r /data/requirements.txt && \
+    pip --no-cache-dir install -r /data/requirements_dev.txt && \
+    pip --no-cache-dir install -r /data/requirements_extra.txt
 
 ADD . /data
-RUN pip install -r /data/requirements.txt
-RUN pip install /data
+RUN pip --no-cache-dir install /data
