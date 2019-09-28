@@ -14,7 +14,7 @@ pip install slack_cleaner2
 
 latest version
 ```bash
-pip install -e git+https://github.com/sgratzl/slack_cleaner.git@develop
+pip install -e git+https://github.com/sgratzl/slack_cleaner2.git
 ```
 
 ## Usage
@@ -46,14 +46,69 @@ You will need to generate a Slack legacy *user* token to use slack-cleaner. You 
 
 The token should start with **xoxp** and not like bot tokens with **xoxb**.
 
+## Permission Scopes needed
 
+The permissions to grant depend on what you are going to use the script for.
+Grant the permissions below depending on your use.
 
-## Minimal Slack permission scopes required
+Beyond granting permissions, if you wish to use this script to delete
+messages or files posted by others, you will need to be an [Owner or
+Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role)
+of the workspace.
+
+#### Deleting messages from public channels
 
 - `channels:history`
 - `channels:read`
-- `chat:write:bot`
+- `chat:write:user`
 - `users:read`
+
+#### Deleting messages from private channels
+
+- `groups:history`
+- `groups:read`
+- `chat:write:user`
+- `users:read`
+
+#### Deleting messages from 1:1 IMs
+
+- `im:history`
+- `im:read`
+- `chat:write:user`
+- `users:read`
+
+#### Deleting messages from multi-person IMs
+
+- `mpim:history`
+- `mpim:read`
+- `chat:write:user`
+- `users:read`
+
+#### Deleting files
+
+- `files:read`
+- `files:write:user`
+- `users:read`
+
+
+## Configuring app
+
+The cleaner needs you to give Slack's API permission to let it run the
+operations it needs. You grant these by registering it as an app in the
+workspace you want to use it in.
+
+You can grant these permissions to the app by:
+
+1. going to [Your Apps](https://api.slack.com/apps)
+2. select 'Create New App', fill out an App Name (eg 'Slack Cleaner') and
+   select the Slack workspace you want to use it in
+3. select 'OAuth & Permissions' in the sidebar
+4. scroll down to Scopes and select all scopes you need
+5. select 'Save changes'
+6. select 'Install App to Workspace'
+7. review the permissions and press 'Authorize'
+8. copy the 'OAuth Access Token' shown, and use this token as the `--token`
+   argument to the script
 
 
 ## Credits
