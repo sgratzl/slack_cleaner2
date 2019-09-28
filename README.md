@@ -1,6 +1,6 @@
 # slack_cleaner2
 
-[![License: MIT][mit-image]][mit-url] [![CircleCI][ci-image]][ci-url] [![PyPi][pypi-image]][pypi-url] [![Read the Docs][docs-image]][docs-url]
+[![License: MIT][mit-image]][mit-url] [![Github Actions][github-actions-image]][github-actions-url] [![PyPi][pypi-image]][pypi-url] [![Read the Docs][docs-image]][docs-url]
 
 Bulk delete messages and files on Slack.
 
@@ -74,8 +74,8 @@ change version in `slack_cleaner2/_info.py`
 
 [mit-image]: https://img.shields.io/badge/License-MIT-yellow.svg
 [mit-url]: https://opensource.org/licenses/MIT
-[ci-image]: https://circleci.com/gh/sgratzl/slack_cleaner2.svg?style=shield
-[ci-url]: https://circleci.com/gh/sgratzl/slack_cleaner2
+[github-actions-image]: https://github.com/sgratzl/slack_cleaner2/workflows/python/badge.svg
+[github-actions-url]: https://github.com/sgratzl/slack_cleaner2/actions
 [pypi-image]: https://pypip.in/version/slack_cleaner2/badge.svg
 [pypi-url]: https://pypi.python.org/pypi/slack_cleaner2/
 [docs-image]: https://readthedocs.org/projects/slack-cleaner2/badge/?version=latest
