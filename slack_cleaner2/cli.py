@@ -7,13 +7,6 @@ from colorama import Fore
 from .predicates import match_user, match, is_name, and_, by_user, match_text, is_not_pinned, is_bot
 from .slack_cleaner2 import SlackCleaner
 
-
-try:
-  from future_builtins import filter
-except ImportError:
-  pass
-
-
 def _show_infos(slack):
   """
   show generic information about this slack workspace

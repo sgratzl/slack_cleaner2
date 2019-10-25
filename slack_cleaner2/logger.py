@@ -6,6 +6,7 @@ import logging
 import pprint
 import sys
 from datetime import datetime
+from typing import Optional
 
 from colorama import Fore, init
 
@@ -18,7 +19,7 @@ class SlackLoggerLayer(object):
    one stack element to group delete operations
   """
 
-  def __init__(self, name, parent):
+  def __init__(self, name: str, parent: Optional[SlackLoggerLayer]):
     self.deleted = 0
     self.errors = 0
     self.name = name
