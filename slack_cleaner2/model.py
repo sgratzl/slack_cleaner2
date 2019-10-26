@@ -4,7 +4,7 @@
 """
 import requests
 from requests import Response
-from typing import Any, Dict, Iterable, Optional, List, Union
+from typing import Any, Dict, Iterator, Optional, List, Union
 from .slack_cleaner2 import SlackCleaner, TimeIsh
 
 JSONDict = Dict[str, Any]
@@ -85,7 +85,7 @@ class SlackUser(object):
     return self.__str__()
 
   def files(self, after: TimeIsh = None,
-            before: TimeIsh = None, types: Optional[str] = None) -> Iterable[SlackFile]:
+            before: TimeIsh = None, types: Optional[str] = None) -> Iterator['SlackFile']:
     """
     list all files of this user
 
@@ -100,7 +100,7 @@ class SlackUser(object):
     """
     return SlackFile.list(self._slack, user=self.id, after=after, before=before, types=types)
 
-  def msgs(self, after: TimeIsh = None, before: TimeIsh = None) -> Iterable[SlackMessage]:
+  def msgs(self, after: TimeIsh = None, before: TimeIsh = None) -> Iterator['SlackMessage']:
     """
     list all messages of this user
 
@@ -172,7 +172,7 @@ class SlackChannel(object):
   def __repr__(self):
     return self.__str__()
 
-  def msgs(self, after: TimeIsh = None, before: TimeIsh = None, asc=False) -> Iterable[SlackMessage]:
+  def msgs(self, after: TimeIsh = None, before: TimeIsh = None, asc=False) -> Iterator['SlackMessage']:
     """
     retrieve all messages as a generator
 
@@ -214,7 +214,7 @@ class SlackChannel(object):
         if msg['type'] == 'message':
           yield SlackMessage(msg, user, self, self._slack)
 
-  def replies_to(self, base_msg: SlackMessage) -> Iterable[SlackMessage]:
+  def replies_to(self, base_msg: 'SlackMessage') -> Iterator['SlackMessage']:
     """
     returns the replies to a given SlackMessage instance
 
@@ -233,7 +233,7 @@ class SlackChannel(object):
         yield SlackMessage(msg, user, self, self._slack)
 
   def files(self, after: TimeIsh = None, before: TimeIsh = None,
-            types: Optional[str] = None) -> Iterable[SlackFile]:
+            types: Optional[str] = None) -> Iterator['SlackFile']:
     """
     list all files of this channel
 
@@ -295,7 +295,7 @@ class SlackMessage(object):
   slacker sub api
   """
 
-  user: SlackUser
+  user: Optional[SlackUser]
   """
   user sending the messsage
   """
@@ -315,7 +315,7 @@ class SlackMessage(object):
   the underlying slack response as json
   """
 
-  def __init__(self, entry: JSONDict, user: SlackUser, channel: SlackChannel, slack: SlackCleaner):
+  def __init__(self, entry: JSONDict, user: Optional[SlackUser], channel: SlackChannel, slack: SlackCleaner):
     """
     :param entry: json dict entry as returned by slack api
     :type entry: dict
@@ -354,7 +354,7 @@ class SlackMessage(object):
       self._slack.log.deleted(self, error)
       return error
 
-  def replies(self) -> Iterable[SlackMessage]:
+  def replies(self) -> Iterator['SlackMessage']:
     """
     list all replies of this message
 
@@ -450,7 +450,7 @@ class SlackFile(object):
   def list(slack, user: Union[str, SlackUser, None] = None,
            after: TimeIsh = None, before: TimeIsh = None,
            types: Optional[str] = None,
-           channel: Union[str, SlackChannel, None] = None) -> Iterable[SlackFile]:
+           channel: Union[str, SlackChannel, None] = None) -> Iterator['SlackFile']:
     """
     list all given files
 
@@ -549,7 +549,7 @@ class SlackFile(object):
     res = self.download_response()
     return res.content
 
-  def download_stream(self, chunk_size=1024) -> Iterable[bytes]:
+  def download_stream(self, chunk_size=1024) -> Iterator[bytes]:
     """
     downloads this file and returns a content stream
 

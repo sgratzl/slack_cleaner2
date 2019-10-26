@@ -22,7 +22,7 @@ class SlackLoggerLayer(object):
    one stack element to group delete operations
   """
 
-  def __init__(self, name: str, parent: Union[SlackLogger, SlackLoggerLayer]):
+  def __init__(self, name: str, parent: Union['SlackLogger', 'SlackLoggerLayer']):
     self.deleted = 0
     self.errors = 0
     self.name = name

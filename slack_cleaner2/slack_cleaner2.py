@@ -4,7 +4,7 @@
 """
 from requests.sessions import Session
 from slacker import Slacker
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterator, Iterable, List, Optional, Union
 
 from .logger import SlackLogger
 from .model import SlackUser, SlackChannel, SlackDirectMessage, SlackFile, SlackMessage
@@ -119,7 +119,8 @@ class SlackCleaner(object):
     self.log.debug('collected ims %s', self.ims)
 
     # all different types with a similar interface
-    self.conversations = self.channels + self.groups + self.mpim + self.ims
+    self.conversations = self.channels + self.groups + self.mpim
+    self.conversations.extend(self.ims)
 
   @property
   def sleep_for(self) -> float:
@@ -136,7 +137,7 @@ class SlackCleaner(object):
   def files(self, user: Union[str, SlackUser, None] = None,
             after: TimeIsh = None, before: TimeIsh = None,
             types: Optional[str] = None,
-            channel: Union[str, SlackChannel, None] = None) -> Iterable[SlackFile]:
+            channel: Union[str, SlackChannel, None] = None) -> Iterator[SlackFile]:
     """
     list all known slack files for the given parameter as a generator
 
@@ -156,7 +157,7 @@ class SlackCleaner(object):
     return SlackFile.list(self, user=user, after=after, before=before, types=types, channel=channel)
 
   def msgs(self, channels: Optional[Iterable[SlackChannel]] = None,
-           after: TimeIsh = None, before: TimeIsh = None) -> Iterable[SlackMessage]:
+           after: TimeIsh = None, before: TimeIsh = None) -> Iterator[SlackMessage]:
     """
     list all known slack messages for the given parameter as a generator
 

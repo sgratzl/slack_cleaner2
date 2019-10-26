@@ -3,33 +3,12 @@
  set of helper predicates to filter messages, channels, and users
  multiple predicates can be combined using & and |
 """
-from typing import Optional, List, Any, Callable
+from typing import Optional, Iterable, List, Any, Callable
 
 from .model import SlackUser
 
 
 PreciateFun = Callable[[Any], bool]
-
-
-class Predicate(object):
-  """
-  helper predicate wrapper for having operator support
-  """
-
-  def __init__(self, fun: PreciateFun):
-    """
-    :param fun: function to evaluate
-    """
-    self.fun = fun
-
-  def __call__(self, obj: Any) -> bool:
-    return self.fun(obj)
-
-  def __and__(self, other: PreciateFun) -> Predicate:
-    return AndPredicate([self.fun, other])
-
-  def __or__(self, other: PreciateFun) -> Predicate:
-    return OrPredicate([self.fun, other])
 
 
 class AndPredicate(object):
@@ -45,18 +24,18 @@ class AndPredicate(object):
       return True
     return all(f(obj) for f in self.children)
 
-  def __and__(self, other: PreciateFun) -> Predicate:
+  def __and__(self, other: PreciateFun) -> 'Predicate':
     if isinstance(other, AndPredicate):
       self.children = self.children + other.children
       return self
     self.children.append(other)
     return self
 
-  def __or__(self, other: PreciateFun) -> Predicate:
+  def __or__(self, other: PreciateFun) -> 'Predicate':
     return OrPredicate([self, other])
 
 
-def and_(predicates: List[PreciateFun]) -> Predicate:
+def and_(predicates: List[PreciateFun]) -> 'Predicate':
   """
   combines multiple predicates using a logical and
 
@@ -81,15 +60,36 @@ class OrPredicate(object):
       return False
     return any(f(obj) for f in self.children)
 
-  def __or__(self, other: PreciateFun) -> Predicate:
+  def __or__(self, other: PreciateFun) -> 'Predicate':
     if isinstance(other, OrPredicate):
       self.children = self.children + other.children
       return self
     self.children.append(other)
     return self
 
-  def __and__(self, other: PreciateFun) -> Predicate:
+  def __and__(self, other: PreciateFun) -> 'Predicate':
     return AndPredicate([self, other])
+
+
+class Predicate(object):
+  """
+  helper predicate wrapper for having operator support
+  """
+
+  def __init__(self, fun: PreciateFun):
+    """
+    :param fun: function to evaluate
+    """
+    self.fun = fun
+
+  def __call__(self, obj: Any) -> bool:
+    return self.fun(obj)
+
+  def __and__(self, other: PreciateFun) -> 'Predicate':
+    return AndPredicate([self.fun, other])
+
+  def __or__(self, other: PreciateFun) -> 'Predicate':
+    return OrPredicate([self.fun, other])
 
 
 def or_(predicates: List[PreciateFun]) -> Predicate:
@@ -102,7 +102,6 @@ def or_(predicates: List[PreciateFun]) -> Predicate:
   :rtype: OrPredicate
   """
   return OrPredicate(predicates)
-
 
 
 def is_not_pinned() -> Predicate:
