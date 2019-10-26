@@ -17,7 +17,7 @@ from .model import SlackFile, SlackMessage
 init()
 
 
-class SlackLoggerLayer(object):
+class SlackLoggerLayer:
   """
    one stack element to group delete operations
   """
@@ -45,7 +45,7 @@ class SlackLoggerLayer(object):
     return self._parent
 
 
-class SlackLogger(object):
+class SlackLogger:
   """
   helper logging class
   """

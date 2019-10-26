@@ -2,18 +2,17 @@
 """
  main module containing the main SlackCleaner class
 """
+from typing import Any, Dict, Iterator, Iterable, List, Optional, Union
 from requests.sessions import Session
 from slacker import Slacker
-from typing import Any, Dict, Iterator, Iterable, List, Optional, Union
 
 from .logger import SlackLogger
 from .model import SlackUser, SlackChannel, SlackDirectMessage, SlackFile, SlackMessage
 
 TimeIsh = Union[None, int, str, float]
-SlackerResponse = Any
 
 
-class SlackCleaner(object):
+class SlackCleaner:
   """
   base class for cleaning up slack providing access to channels and users
   """

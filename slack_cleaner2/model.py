@@ -2,15 +2,19 @@
 """
  model module for absracting channels, messages, and files
 """
+from typing import Any, Dict, Iterator, Optional, List, Union
+import time
+from os import path
 import requests
 from requests import Response
-from typing import Any, Dict, Iterator, Optional, List, Union
+
 from .slack_cleaner2 import SlackCleaner, TimeIsh
+from .predicates import is_member, by_user
 
 JSONDict = Dict[str, Any]
 
 
-class SlackUser(object):
+class SlackUser:
   """
   internal model of a slack user
   """
@@ -111,14 +115,13 @@ class SlackUser(object):
     :return: generator of SlackMessage objects
     :rtype: SlackMessage
     """
-    from .predicates import is_member, by_user
     by_me = by_user(self)
     for msg in self._slack.msgs(filter(is_member(self), self._slack.conversations), after=after, before=before):
       if by_me(msg):
         yield msg
 
 
-class SlackChannel(object):
+class SlackChannel:
   """
   internal model of a slack channel, group, mpim, im
   """
@@ -275,7 +278,7 @@ class SlackDirectMessage(SlackChannel):
     self.user = user
 
 
-class SlackMessage(object):
+class SlackMessage:
   """
   internal model of a slack message
   """
@@ -370,7 +373,7 @@ class SlackMessage(object):
     return self.__str__()
 
 
-class SlackFile(object):
+class SlackFile:
   """
   internal representation of a slack file
   """
@@ -566,8 +569,6 @@ class SlackFile(object):
     :return: the stored file path
     :rtype: str
     """
-    from os import path
-
     file_name = path.join(directory, self.name)
     return self.download(file_name)
 
@@ -585,8 +586,6 @@ class SlackFile(object):
 
 
 def _parse_time(time_str: TimeIsh) -> Optional[float]:
-  import time
-
   if time_str is None:
     return None
   if isinstance(time_str, (int, float)):

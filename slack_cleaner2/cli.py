@@ -3,8 +3,8 @@
   deprecated cli mimicing old slack cleaner
 """
 import argparse
-from colorama import Fore
 from typing import Any, Callable, Dict, List
+from colorama import Fore
 
 from .predicates import match_user, match, is_name, and_, by_user, match_text, is_not_pinned, is_bot
 from .slack_cleaner2 import SlackCleaner

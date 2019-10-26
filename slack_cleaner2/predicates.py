@@ -3,6 +3,7 @@
  set of helper predicates to filter messages, channels, and users
  multiple predicates can be combined using & and |
 """
+import re
 from typing import Optional, Iterable, List, Any, Callable
 
 from .model import SlackUser
@@ -11,7 +12,7 @@ from .model import SlackUser
 PreciateFun = Callable[[Any], bool]
 
 
-class AndPredicate(object):
+class AndPredicate:
   """
    common and predicate
   """
@@ -47,7 +48,7 @@ def and_(predicates: List[PreciateFun]) -> 'Predicate':
   return AndPredicate(predicates)
 
 
-class OrPredicate(object):
+class OrPredicate:
   """
    common or predicate
   """
@@ -71,7 +72,7 @@ class OrPredicate(object):
     return AndPredicate([self, other])
 
 
-class Predicate(object):
+class Predicate:
   """
   helper predicate wrapper for having operator support
   """
@@ -129,7 +130,6 @@ def match(pattern: str, attr: str = 'name') -> Predicate:
   :return: Predicate
   :rtype: Predicate
   """
-  import re
   regex = re.compile('^' + pattern + '$', re.I)
 
   return Predicate(lambda channel: regex.search(getattr(channel, attr)) is not None)
@@ -168,7 +168,6 @@ def match_user(pattern: str) -> Predicate:
   :return: Predicate
   :rtype: Predicate
   """
-  import re
   regex = re.compile('^' + pattern + '$', re.I)
   return Predicate(lambda user: any(
     regex.search(u or '') for u in [user.id, user.name, user.display_name, user.email, user.real_name]))
