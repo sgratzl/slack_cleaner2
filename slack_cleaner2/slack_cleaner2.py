@@ -4,9 +4,13 @@
 """
 from requests.sessions import Session
 from slacker import Slacker
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 from .logger import SlackLogger
-from .model import SlackUser, SlackChannel, SlackDirectMessage, SlackFile
+from .model import SlackUser, SlackChannel, SlackDirectMessage, SlackFile, SlackMessage
+
+TimeIsh = Union[None, int, str, float]
+SlackerResponse = Any
 
 
 class SlackCleaner(object):
@@ -14,48 +18,48 @@ class SlackCleaner(object):
   base class for cleaning up slack providing access to channels and users
   """
 
-  log = None  # type: SlackLogger
+  log: SlackLogger
   """
   SlackLogger instance for easy logging
   """
-  api = None  # type: Slacker
+  api: Slacker
   """
   underlying slacker instance
   """
-  users = []  # type: [SlackUser]
+  users: List[SlackUser]
   """
   list of known users
   """
-  myself = None  # type: SlackUser
+  myselfe: SlackUser
   """
   the calling slack user, i.e the one whose token is used
   """
-  user = {}  # type: {str:SlackUser}
+  user: Dict[str, SlackUser] = {}
   """
   dictionary lookup from user id to SlackUser object
   """
-  channels = []  # type: [SlackChannel]
+  channels: List[SlackChannel] = []
   """
   list of channels
   """
-  groups = []  # type: [SlackChannel]
+  groups: List[SlackChannel] = []
   """
   list of groups aka private channels
   """
-  mpim = []  # type: [SlackChannel]
+  mpim: List[SlackChannel] = []
   """
   list of multi person instant message channels
   """
-  ims = []  # type: [SlackDirectMessage]
+  ims: List[SlackDirectMessage] = []
   """
   list of instant messages = direct messages
   """
-  conversations = []  # type: [SlackChannel]
+  conversations: List[Union[SlackChannel, SlackDirectMessage]] = []
   """
   list of channel+group+mpim+ims
   """
 
-  def __init__(self, token, sleep_for=0, log_to_file=False, slacker=None, session=None):
+  def __init__(self, token: str, sleep_for=0, log_to_file=False, slacker: Optional[Slacker] = None, session=None):
     """
     :param token: the slack token, see README.md for details
     :type token: str
@@ -78,8 +82,7 @@ class SlackCleaner(object):
       self.api = slacker
     else:
       slack = Slacker(token, session=session if session else Session())
-      if hasattr(slack, 'rate_limit_retries'):
-        slack.rate_limit_retries = 2
+      slack.rate_limit_retries = 2
       self.api = slack
 
     self.users = [SlackUser(m, self) for m in _safe_list(slack.users.list(), 'members')]
@@ -119,7 +122,7 @@ class SlackCleaner(object):
     self.conversations = self.channels + self.groups + self.mpim + self.ims
 
   @property
-  def sleep_for(self):
+  def sleep_for(self) -> float:
     """
     get the sleep_for attribute
     :rtype: float
@@ -127,10 +130,13 @@ class SlackCleaner(object):
     return self.log.sleep_for
 
   @sleep_for.setter
-  def sleep_for(self, value):
+  def sleep_for(self, value: float):
     self.log.sleep_for = value
 
-  def files(self, user=None, after=None, before=None, types=None, channel=None):
+  def files(self, user: Union[str, SlackUser, None] = None,
+            after: TimeIsh = None, before: TimeIsh = None,
+            types: Optional[str] = None,
+            channel: Union[str, SlackChannel, None] = None) -> Iterable[SlackFile]:
     """
     list all known slack files for the given parameter as a generator
 
@@ -149,7 +155,8 @@ class SlackCleaner(object):
     """
     return SlackFile.list(self, user=user, after=after, before=before, types=types, channel=channel)
 
-  def msgs(self, channels=None, after=None, before=None):
+  def msgs(self, channels: Optional[Iterable[SlackChannel]] = None,
+           after: TimeIsh = None, before: TimeIsh = None) -> Iterable[SlackMessage]:
     """
     list all known slack messages for the given parameter as a generator
 
@@ -169,14 +176,14 @@ class SlackCleaner(object):
         yield msg
 
 
-def _safe_list(res, attr):
+def _safe_list(res: Any, attr: str) -> List[Any]:
   res = res.body
   if not res['ok'] or not res[attr]:
     return []
   return res[attr]
 
 
-def _safe_attr(res, attr):
+def _safe_attr(res: Any, attr: str) -> Dict[str, Any]:
   res = res.body
   if not res['ok'] or attr not in res:
     return dict()

@@ -2,13 +2,16 @@
 """
  logger util module
 """
+from datetime import datetime
 import logging
 import pprint
 import sys
-from datetime import datetime
-from typing import Optional
+from time import sleep
+from typing import Optional, Union
 
 from colorama import Fore, init
+
+from .model import SlackFile, SlackMessage
 
 # init colors for Powershell
 init()
@@ -19,7 +22,7 @@ class SlackLoggerLayer(object):
    one stack element to group delete operations
   """
 
-  def __init__(self, name: str, parent: Optional[SlackLoggerLayer]):
+  def __init__(self, name: str, parent: Union[SlackLogger, SlackLoggerLayer]):
     self.deleted = 0
     self.errors = 0
     self.name = name
@@ -47,7 +50,7 @@ class SlackLogger(object):
   helper logging class
   """
 
-  def __init__(self, to_file=False, sleep_for=0):
+  def __init__(self, to_file=False, sleep_for: float = 0):
     self.sleep_for = sleep_for
     self._log = logging.getLogger('slack-cleaner')
     for handler in list(self._log.handlers):
@@ -74,7 +77,7 @@ class SlackLogger(object):
     self.critical = self._log.critical
     self.log = self._log.log
 
-  def deleted(self, file_or_msg, error=None):
+  def deleted(self, file_or_msg: Union[SlackFile, SlackMessage], error: Optional[Exception] = None):
     """
     log a deleted file or message with optional error
     """
@@ -91,10 +94,9 @@ class SlackLogger(object):
       self.debug(u'deleted entry: %s', file_or_msg)
 
     if self.sleep_for > 0:
-      from time import sleep
       sleep(self.sleep_for)
 
-  def group(self, name):
+  def group(self, name: str) -> SlackLoggerLayer:
     """
     push another log group
     """
@@ -103,7 +105,7 @@ class SlackLogger(object):
     self._layers.append(layer)
     return layer
 
-  def pop(self):
+  def pop(self) -> SlackLoggerLayer:
     """
     pops last log group
     """

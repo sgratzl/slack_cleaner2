@@ -2,6 +2,12 @@
 """
  model module for absracting channels, messages, and files
 """
+import requests
+from requests import Response
+from typing import Any, Dict, Iterable, Optional, List, Union
+from .slack_cleaner2 import SlackCleaner, TimeIsh
+
+JSONDict = Dict[str, Any]
 
 
 class SlackUser(object):
@@ -9,52 +15,52 @@ class SlackUser(object):
   internal model of a slack user
   """
 
-  id = None  # type: str
+  id: str
   """
   user id
   """
 
-  name = None  # tyoe: str
+  name: str
   """
   user name
   """
 
-  real_name = None  # tpye: str
+  real_name: str
   """
   user real name
   """
 
-  display_name = None  # type: str
+  display_name: str
   """
   user display name
   """
 
-  email = None  # type: str
+  email: str
   """
   user email address
   """
 
-  is_bot = False  # type: bool
+  is_bot = False
   """
   is it a bot user
   """
 
-  is_app_user = False  # type: bool
+  is_app_user = False
   """
   is it an app user
   """
 
-  bot = False  # type: bool
+  bot = False
   """
   is it a bot or app user
   """
 
-  json = None  # type: dict
+  json: JSONDict
   """
   the underlying slack response as json
   """
 
-  def __init__(self, entry, slack):
+  def __init__(self, entry: JSONDict, slack: SlackCleaner):
     """
     :param entry: json dict entry as returned by slack api
     :type entry: dict
@@ -78,7 +84,8 @@ class SlackUser(object):
   def __repr__(self):
     return self.__str__()
 
-  def files(self, after=None, before=None, types=None):
+  def files(self, after: TimeIsh = None,
+            before: TimeIsh = None, types: Optional[str] = None) -> Iterable[SlackFile]:
     """
     list all files of this user
 
@@ -93,7 +100,7 @@ class SlackUser(object):
     """
     return SlackFile.list(self._slack, user=self.id, after=after, before=before, types=types)
 
-  def msgs(self, after=None, before=None):
+  def msgs(self, after: TimeIsh = None, before: TimeIsh = None) -> Iterable[SlackMessage]:
     """
     list all messages of this user
 
@@ -116,32 +123,32 @@ class SlackChannel(object):
   internal model of a slack channel, group, mpim, im
   """
 
-  id = None  # type: str
+  id: str
   """
   channel id
   """
 
-  name = None  # type: str
+  name: str
   """
   channel name
   """
 
-  members = []  # type: [SlackUser]
+  members: List[SlackUser] = []
   """
   list of members
   """
 
-  api = None
+  api: Any
   """
   Slacker sub api
   """
 
-  json = None  # type: dict
+  json: JSONDict
   """
   the underlying slack response as json
   """
 
-  def __init__(self, entry, members, api, slack):
+  def __init__(self, entry: JSONDict, members: List[SlackUser], api: Any, slack: SlackCleaner):
     """
     :param entry: json dict entry as returned by slack api
     :type entry: dict
@@ -165,7 +172,7 @@ class SlackChannel(object):
   def __repr__(self):
     return self.__str__()
 
-  def msgs(self, after=None, before=None, asc=False):
+  def msgs(self, after: TimeIsh = None, before: TimeIsh = None, asc=False) -> Iterable[SlackMessage]:
     """
     retrieve all messages as a generator
 
@@ -207,7 +214,7 @@ class SlackChannel(object):
         if msg['type'] == 'message':
           yield SlackMessage(msg, user, self, self._slack)
 
-  def replies_to(self, base_msg):
+  def replies_to(self, base_msg: SlackMessage) -> Iterable[SlackMessage]:
     """
     returns the replies to a given SlackMessage instance
 
@@ -225,7 +232,8 @@ class SlackChannel(object):
       if msg['type'] == 'message':
         yield SlackMessage(msg, user, self, self._slack)
 
-  def files(self, after=None, before=None, types=None):
+  def files(self, after: TimeIsh = None, before: TimeIsh = None,
+            types: Optional[str] = None) -> Iterable[SlackFile]:
     """
     list all files of this channel
 
@@ -246,12 +254,12 @@ class SlackDirectMessage(SlackChannel):
   internal model of a slack direct message channel
   """
 
-  user = None  # type: SlackUser
+  user: SlackUser
   """
   user talking to
   """
 
-  def __init__(self, entry, user, api, slack):
+  def __init__(self, entry: JSONDict, user: SlackUser, api: Any, slack: SlackCleaner):
     """
     :param entry: json dict entry as returned by slack api
     :type entry: dict
@@ -272,42 +280,42 @@ class SlackMessage(object):
   internal model of a slack message
   """
 
-  ts = None  # type: float
+  ts: float
   """
   message timestamp
   """
 
-  text = None  # type: str
+  text: str
   """
   message text
   """
 
-  api = None
+  api: Any
   """
   slacker sub api
   """
 
-  user = None  # type: SlackUser
+  user: SlackUser
   """
   user sending the messsage
   """
 
-  bot = False  # type: bool
+  bot = False
   """
   is the message written by a bot
   """
 
-  pinned_to = False  # type: bool
+  pinned_to = False
   """
   is the message pinned
   """
 
-  json = None  # type: dict
+  json: JSONDict
   """
   the underlying slack response as json
   """
 
-  def __init__(self, entry, user, channel, slack):
+  def __init__(self, entry: JSONDict, user: SlackUser, channel: SlackChannel, slack: SlackCleaner):
     """
     :param entry: json dict entry as returned by slack api
     :type entry: dict
@@ -318,7 +326,6 @@ class SlackMessage(object):
     :param slack: slack cleaner instance
     :type slack: SlackCleaner
     """
-
     self.ts = float(entry['ts'])
     self.text = entry['text']
     self._channel = channel
@@ -329,7 +336,7 @@ class SlackMessage(object):
     self.bot = entry.get('subtype') == 'bot_message' or 'bot_id' in entry
     self.pinned_to = entry.get('pinned_to', False)
 
-  def delete(self, as_user=False):
+  def delete(self, as_user=False) -> Optional[Exception]:
     """
     deletes this message
 
@@ -347,7 +354,7 @@ class SlackMessage(object):
       self._slack.log.deleted(self, error)
       return error
 
-  def replies(self):
+  def replies(self) -> Iterable[SlackMessage]:
     """
     list all replies of this message
 
@@ -368,57 +375,57 @@ class SlackFile(object):
   internal representation of a slack file
   """
 
-  id = None  # type: str
+  id: str
   """
   file id
   """
 
-  name = None  # type: str
+  name: str
   """
   file name
   """
 
-  title = None  # type: str
+  title: str
   """
   file title
   """
 
-  api = None
+  api: Any
   """
   slacker sub api
   """
 
-  user = None  # type: SlackUser
+  user: SlackUser
   """
   user created this file
   """
 
-  pinned_to = False  # type: bool
+  pinned_to = False
   """
   is the file pinned
   """
 
-  mimetype = None  # type: str
+  mimetype: Optional[str]
   """
   the file mime type
   """
 
-  size = None  # type: int
+  size: int
   """
   the file size
   """
 
-  is_public = False  # type: bool
+  is_public = False
   """
   is the file public
   """
 
-  json = None  # type: dict
+  json: JSONDict
   """
   the underlying slack response as json
   """
 
-  def __init__(self, entry, user, slack):
+  def __init__(self, entry: JSONDict, user: SlackUser, slack: SlackCleaner):
     """
     :param entry: json dict entry as returned by slack api
     :type entry: dict
@@ -440,7 +447,10 @@ class SlackFile(object):
     self.api = slack.api.files
 
   @staticmethod
-  def list(slack, user=None, after=None, before=None, types=None, channel=None):
+  def list(slack, user: Union[str, SlackUser, None] = None,
+           after: TimeIsh = None, before: TimeIsh = None,
+           types: Optional[str] = None,
+           channel: Union[str, SlackChannel, None] = None) -> Iterable[SlackFile]:
     """
     list all given files
 
@@ -485,13 +495,13 @@ class SlackFile(object):
       for sfile in files:
         yield SlackFile(sfile, slack.user[sfile['user']], slack)
 
-  def __str__(self):
+  def __str__(self) -> str:
     return self.name
 
   def __repr__(self):
     return self.__str__()
 
-  def delete(self):
+  def delete(self) -> Optional[Exception]:
     """
     delete the file itself
 
@@ -507,20 +517,19 @@ class SlackFile(object):
       self._slack.log.deleted(self, error)
       return error
 
-  def download_response(self, **kwargs):
+  def download_response(self, **kwargs) -> Response:
     """
     downloads this file using python requests module
 
     :return: python requests Response object
     :rtype: Response
     """
-    import requests
     headers = {
       'Authorization': 'Bearer ' + self._slack.token
     }
     return requests.get(self.json['url_private_download'], headers=headers, **kwargs)
 
-  def download_json(self):
+  def download_json(self) -> JSONDict:
     """
     downloads this file and returns the JSON content
 
@@ -530,7 +539,7 @@ class SlackFile(object):
     res = self.download_response()
     return res.json()
 
-  def download_content(self):
+  def download_content(self) -> bytes:
     """
     downloads this file and returns the raw content
 
@@ -540,7 +549,7 @@ class SlackFile(object):
     res = self.download_response()
     return res.content
 
-  def download_stream(self, chunk_size=1024):
+  def download_stream(self, chunk_size=1024) -> Iterable[bytes]:
     """
     downloads this file and returns a content stream
 
@@ -550,7 +559,7 @@ class SlackFile(object):
     res = self.download_response(stream=True)
     return res.iter_content(chunk_size=chunk_size)
 
-  def download_to(self, directory='.'):
+  def download_to(self, directory: str = '.') -> str:
     """
     downloads this file to the given directory
 
@@ -562,7 +571,7 @@ class SlackFile(object):
     file_name = path.join(directory, self.name)
     return self.download(file_name)
 
-  def download(self, file_name=None):
+  def download(self, file_name: Optional[str] = None) -> str:
     """
     downloads this file to the given file name
 
@@ -572,10 +581,10 @@ class SlackFile(object):
     with open(file_name or self.name, 'wb') as out:
       for chunk in self.download_stream():
         out.write(chunk)
-    return file_name
+    return file_name or self.name
 
 
-def _parse_time(time_str):
+def _parse_time(time_str: TimeIsh) -> Optional[float]:
   import time
 
   if time_str is None:
@@ -590,7 +599,7 @@ def _parse_time(time_str):
     return None
 
 
-def _find_user(users, msg):
+def _find_user(users: Dict[str, SlackUser], msg: Dict[str, Any]) -> Optional[SlackUser]:
   if 'user' not in msg:
     return None
   userid = msg['user']

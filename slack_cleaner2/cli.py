@@ -2,17 +2,24 @@
 """
   deprecated cli mimicing old slack cleaner
 """
+import argparse
 from colorama import Fore
+from typing import Any, Callable, Dict, List
 
 from .predicates import match_user, match, is_name, and_, by_user, match_text, is_not_pinned, is_bot
 from .slack_cleaner2 import SlackCleaner
+from .model import SlackChannel
 
-def _show_infos(slack):
+
+PredicateFun = Callable[[Any], bool]
+
+
+def _show_infos(slack: SlackCleaner):
   """
   show generic information about this slack workspace
   """
 
-  def _print_dict(cat, data):
+  def _print_dict(cat: str, data: Dict[str, str]):
     msg = u'{}{}:{}'.format(Fore.GREEN, cat, Fore.RESET)
     for k, v in data.items():
       msg += u'\n{} {}'.format(k, v)
@@ -26,7 +33,7 @@ def _show_infos(slack):
   _print_dict(u'mulit user direct messsages', {u.id: u.name for u in slack.mpim})
 
 
-def _resolve_user(slack, args):
+def _resolve_user(slack: SlackCleaner, args: Any):
   """
   resolves th user to delete messages of
   """
@@ -35,13 +42,13 @@ def _resolve_user(slack, args):
   return next(filter(match_user(args.user), slack.users))
 
 
-def _channels(slack, args):
+def _channels(slack: SlackCleaner, args: Any):
   """
   resolves channesls to delete messages from
   """
-  channels = []
+  channels: List[SlackChannel] = []
 
-  filter_f = match if args.regex else is_name
+  filter_f: Any = match if args.regex else is_name
 
   if args.channel:
     channels.extend(filter(filter_f(args.channel), slack.channels))
@@ -55,13 +62,13 @@ def _channels(slack, args):
   return channels
 
 
-def _delete_messages(slack, args):
+def _delete_messages(slack: SlackCleaner, args: Any):
   """
   delete old messages
   """
   channels = _channels(slack, args)
 
-  pred = []
+  pred: List[PredicateFun] = []
 
   user = _resolve_user(slack, args)
   if user:
@@ -75,12 +82,12 @@ def _delete_messages(slack, args):
   if args.botname:
     pred.append(by_user(next(filter(match_user(args.botname), slack.users))))
 
-  pred = and_(pred)
+  condition = and_(pred)
   total = 0
   for channel in channels:
     with slack.log.group(channel.name):
       for msg in channel.msgs(args.after, args.before):
-        if not pred(msg):
+        if not condition(msg):
           continue
         if args.perform:
           msg.delete(args.as_user)
@@ -89,14 +96,14 @@ def _delete_messages(slack, args):
   slack.log.info(u'summary: %s', slack.log)
 
 
-def _delete_files(slack, args):
+def _delete_files(slack: SlackCleaner, args: Any):
   """
   delete old files
   """
   user = _resolve_user(slack, args)
   channels = _channels(slack, args)
 
-  pred = []
+  pred: List[PredicateFun] = []
 
   user = _resolve_user(slack, args)
   if user:
@@ -110,12 +117,12 @@ def _delete_files(slack, args):
   if args.botname:
     pred.append(by_user(next(filter(match_user(args.botname), slack.users))))
 
-  pred = and_(pred)
+  condition = and_(pred)
   total = 0
   for channel in channels:
     with slack.log.group(channel.name):
       for sfile in channel.files(args.after, args.before, args.types):
-        if not pred(sfile):
+        if not condition(sfile):
           continue
         if args.perform:
           sfile.delete(args.as_user)
@@ -124,11 +131,10 @@ def _delete_files(slack, args):
   slack.log.info(u'summary: %s', slack.log)
 
 
-def _args():
+def _args() -> Any:
   """
   cli argument parser
   """
-  import argparse
   parser = argparse.ArgumentParser(prog='slack-cleaner')
   # Token
   parser.add_argument('--token', required=True,
@@ -166,7 +172,7 @@ def _args():
   parser.add_argument('--group',
                       help='Private group\'s name')
   parser.add_argument('--mpdirect',
-                      help='Multiparty direct message\'s name, e.g., ' +
+                      help='Multiparty direct message\'s name, e.g., '
                            'sherry,james,johndoe')
 
   # Conditions
