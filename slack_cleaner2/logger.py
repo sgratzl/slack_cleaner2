@@ -7,11 +7,9 @@ import logging
 import pprint
 import sys
 from time import sleep
-from typing import Optional, Union
+from typing import Optional, Union, Any
 
 from colorama import Fore, init
-
-from .model import SlackFile, SlackMessage
 
 # init colors for Powershell
 init()
@@ -77,7 +75,7 @@ class SlackLogger:
     self.critical = self._log.critical
     self.log = self._log.log
 
-  def deleted(self, file_or_msg: Union[SlackFile, SlackMessage], error: Optional[Exception] = None):
+  def deleted(self, file_or_msg: Any, error: Optional[Exception] = None):
     """
     log a deleted file or message with optional error
     """
