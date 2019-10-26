@@ -11,6 +11,7 @@ from typing import Optional, Union, Any
 
 from colorama import Fore, init
 
+
 # init colors for Powershell
 init()
 
