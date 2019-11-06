@@ -32,7 +32,7 @@ s.users
 # list of all kind of channels
 s.conversations
 
-# delete all messages in -bozs channels
+# delete all messages in -bots channels
 for msg in s.msgs(filter(match('.*-bots'), s.conversations)):
   msg.delete()
 ```
