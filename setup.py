@@ -20,6 +20,7 @@ setup(
     version="2.0.0",
     license="MIT license",
     long_description=readme,
+    long_description_content_type="text/markdown",
     keywords="slack_cleaner2 slack slack-cleaner",
     author="Samuel Gratzl",
     author_email="sam@sgratzl.com",
