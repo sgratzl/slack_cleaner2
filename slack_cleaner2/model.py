@@ -615,7 +615,7 @@ class ByNameLookup(Generic[ByName]):
       return self._arr[key]
     return next((v for v in self._arr if cast(Any, v).name == key), None)
 
-  def __getattr__ (self, name: str) -> Optional[ByName]:
+  def __getattr__(self, name: str) -> Optional[ByName]:
     return self[name]
 
   def __len__(self) -> int:
