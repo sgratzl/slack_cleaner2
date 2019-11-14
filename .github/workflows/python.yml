@@ -13,9 +13,17 @@ jobs:
         python-version: 3.7
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements_dev.txt
-    - name: make
+        pip install pipenv
+        pipenv install --dev --skip-lock
+    - name: tox py36
       run: |
-        make install lint test coverage docs
+        pipenv run tox -e py36
+    - name: tox py37
+      run: |
+        pipenv run tox -e py37
+    - name: tox lint
+      run: |
+        pipenv run tox -e lint
+    - name: tox format
+      run: |
+        pipenv run tox -e format

@@ -1,2 +1,0 @@
-pymongo>=3.9.0
-elasticsearch>=7.0.5

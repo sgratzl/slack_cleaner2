@@ -9,7 +9,7 @@ Bulk delete messages and files on Slack.
 Install from PyPi:
 
 ```bash
-pip install slack_cleaner2
+pip install slack-cleaner2
 ```
 
 latest version
@@ -34,6 +34,9 @@ s.conversations
 
 # delete all messages in -bots channels
 for msg in s.msgs(filter(match('.*-bots'), s.conversations)):
+  msg.delete()
+
+for msg in s.c.general.msgs():
   msg.delete()
 ```
 
