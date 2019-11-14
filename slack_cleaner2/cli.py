@@ -14,209 +14,193 @@ PredicateFun = Callable[[Any], bool]
 
 
 def _show_infos(slack: SlackCleaner):
-  """
+    """
   show generic information about this slack workspace
   """
 
-  def _print_dict(cat: str, data: Dict[str, str]):
-    msg = u'{}{}:{}'.format(Fore.GREEN, cat, Fore.RESET)
-    for k, v in data.items():
-      msg += u'\n{} {}'.format(k, v)
-    slack.log.info(msg)
+    def _print_dict(cat: str, data: Dict[str, str]):
+        msg = "{}{}:{}".format(Fore.GREEN, cat, Fore.RESET)
+        for k, v in data.items():
+            msg += "\n{} {}".format(k, v)
+        slack.log.info(msg)
 
-  _print_dict(u'users', {u.id: u'{} = {}'.format(u.name, u.real_name) for u in slack.users})
+    _print_dict("users", {u.id: "{} = {}".format(u.name, u.real_name) for u in slack.users})
 
-  _print_dict(u'public channels', {u.id: u.name for u in slack.channels})
-  _print_dict(u'private channels', {u.id: u.name for u in slack.groups})
-  _print_dict(u'instant messages', {u.id: u.name for u in slack.ims})
-  _print_dict(u'mulit user direct messsages', {u.id: u.name for u in slack.mpim})
+    _print_dict("public channels", {u.id: u.name for u in slack.channels})
+    _print_dict("private channels", {u.id: u.name for u in slack.groups})
+    _print_dict("instant messages", {u.id: u.name for u in slack.ims})
+    _print_dict("mulit user direct messsages", {u.id: u.name for u in slack.mpim})
 
 
 def _resolve_user(slack: SlackCleaner, args: Any):
-  """
+    """
   resolves th user to delete messages of
   """
-  if args.user == '*':
-    return None
-  return next(filter(match_user(args.user), slack.users))
+    if args.user == "*":
+        return None
+    return next(filter(match_user(args.user), slack.users))
 
 
 def _channels(slack: SlackCleaner, args: Any):
-  """
+    """
   resolves channesls to delete messages from
   """
-  channels: List[SlackChannel] = []
+    channels: List[SlackChannel] = []
 
-  filter_f: Any = match if args.regex else is_name
+    filter_f: Any = match if args.regex else is_name
 
-  if args.channel:
-    channels.extend(filter(filter_f(args.channel), slack.channels))
-  if args.group:
-    channels.extend(filter(filter_f(args.group), slack.groups))
-  if args.direct:
-    channels.extend(filter(filter_f(args.direct), slack.ims))
-  if args.mpdirect:
-    channels.extend(filter(filter_f(args.mpdirect), slack.mpim))
+    if args.channel:
+        channels.extend(filter(filter_f(args.channel), slack.channels))
+    if args.group:
+        channels.extend(filter(filter_f(args.group), slack.groups))
+    if args.direct:
+        channels.extend(filter(filter_f(args.direct), slack.ims))
+    if args.mpdirect:
+        channels.extend(filter(filter_f(args.mpdirect), slack.mpim))
 
-  return channels
+    return channels
 
 
 def _delete_messages(slack: SlackCleaner, args: Any):
-  """
+    """
   delete old messages
   """
-  channels = _channels(slack, args)
+    channels = _channels(slack, args)
 
-  pred: List[PredicateFun] = []
+    pred: List[PredicateFun] = []
 
-  user = _resolve_user(slack, args)
-  if user:
-    pred.append(by_user(user))
-  if args.pattern:
-    pred.append(match_text(args.pattern))
-  if args.keeppinned:
-    pred.append(is_not_pinned())
-  if args.bot:
-    pred.append(is_bot())
-  if args.botname:
-    pred.append(by_user(next(filter(match_user(args.botname), slack.users))))
+    user = _resolve_user(slack, args)
+    if user:
+        pred.append(by_user(user))
+    if args.pattern:
+        pred.append(match_text(args.pattern))
+    if args.keeppinned:
+        pred.append(is_not_pinned())
+    if args.bot:
+        pred.append(is_bot())
+    if args.botname:
+        pred.append(by_user(next(filter(match_user(args.botname), slack.users))))
 
-  condition = and_(pred)
-  total = 0
-  for channel in channels:
-    with slack.log.group(channel.name):
-      for msg in channel.msgs(args.after, args.before):
-        if not condition(msg):
-          continue
-        if args.perform:
-          msg.delete(args.as_user)
-        total += 1
+    condition = and_(pred)
+    total = 0
+    for channel in channels:
+        with slack.log.group(channel.name):
+            for msg in channel.msgs(args.after, args.before):
+                if not condition(msg):
+                    continue
+                if args.perform:
+                    msg.delete(args.as_user)
+                total += 1
 
-  slack.log.info(u'summary: %s', slack.log)
+    slack.log.info("summary: %s", slack.log)
 
 
 def _delete_files(slack: SlackCleaner, args: Any):
-  """
+    """
   delete old files
   """
-  user = _resolve_user(slack, args)
-  channels = _channels(slack, args)
+    user = _resolve_user(slack, args)
+    channels = _channels(slack, args)
 
-  pred: List[PredicateFun] = []
+    pred: List[PredicateFun] = []
 
-  user = _resolve_user(slack, args)
-  if user:
-    pred.append(by_user(user))
-  if args.pattern:
-    pred.append(match(args.pattern))
-  if args.keeppinned:
-    pred.append(is_not_pinned())
-  if args.bot:
-    pred.append(is_bot())
-  if args.botname:
-    pred.append(by_user(next(filter(match_user(args.botname), slack.users))))
+    user = _resolve_user(slack, args)
+    if user:
+        pred.append(by_user(user))
+    if args.pattern:
+        pred.append(match(args.pattern))
+    if args.keeppinned:
+        pred.append(is_not_pinned())
+    if args.bot:
+        pred.append(is_bot())
+    if args.botname:
+        pred.append(by_user(next(filter(match_user(args.botname), slack.users))))
 
-  condition = and_(pred)
-  total = 0
-  for channel in channels:
-    with slack.log.group(channel.name):
-      for sfile in channel.files(args.after, args.before, args.types):
-        if not condition(sfile):
-          continue
-        if args.perform:
-          sfile.delete(args.as_user)
-        total += 1
+    condition = and_(pred)
+    total = 0
+    for channel in channels:
+        with slack.log.group(channel.name):
+            for sfile in channel.files(args.after, args.before, args.types):
+                if not condition(sfile):
+                    continue
+                if args.perform:
+                    sfile.delete(args.as_user)
+                total += 1
 
-  slack.log.info(u'summary: %s', slack.log)
+    slack.log.info("summary: %s", slack.log)
 
 
 def _args() -> Any:
-  """
+    """
   cli argument parser
   """
-  parser = argparse.ArgumentParser(prog='slack-cleaner')
-  # Token
-  parser.add_argument('--token', required=True,
-                      help='Slack API token (https://api.slack.com/web)')
+    parser = argparse.ArgumentParser(prog="slack-cleaner")
+    # Token
+    parser.add_argument("--token", required=True, help="Slack API token (https://api.slack.com/web)")
 
-  # Log
-  parser.add_argument('--log', action='store_true',
-                      help='Create a log file in the current directory')
-  # Quiet
-  parser.add_argument('--quiet', action='store_true',
-                      help='Run quietly, does not log messages deleted')
+    # Log
+    parser.add_argument("--log", action="store_true", help="Create a log file in the current directory")
+    # Quiet
+    parser.add_argument("--quiet", action="store_true", help="Run quietly, does not log messages deleted")
 
-  # Rate limit
-  parser.add_argument('--rate', type=float,
-                      help='Delay between API calls (in seconds)')
+    # Rate limit
+    parser.add_argument("--rate", type=float, help="Delay between API calls (in seconds)")
 
-  # user
-  parser.add_argument('--as_user', action='store_true',
-                      help='Pass true to delete the message as the authed user. Bot users in this context are considered authed users.')
+    # user
+    parser.add_argument("--as_user", action="store_true", help="Pass true to delete the message as the authed user. Bot users in this context are considered authed users.")
 
-  # Type
-  g_type = parser.add_mutually_exclusive_group()
-  g_type.add_argument('--message', action='store_true',
-                      help='Delete messages')
-  g_type.add_argument('--file', action='store_true',
-                      help='Delete files')
-  g_type.add_argument('--info', action='store_true',
-                      help='Show information')
+    # Type
+    g_type = parser.add_mutually_exclusive_group()
+    g_type.add_argument("--message", action="store_true", help="Delete messages")
+    g_type.add_argument("--file", action="store_true", help="Delete files")
+    g_type.add_argument("--info", action="store_true", help="Show information")
 
-  parser.add_argument('--regex', action='store_true', help='Interpret channel, direct, group, and mpdirect as regex')
-  parser.add_argument('--channel',
-                      help='Channel name\'s, e.g., general')
-  parser.add_argument('--direct',
-                      help='Direct message\'s name, e.g., sherry')
-  parser.add_argument('--group',
-                      help='Private group\'s name')
-  parser.add_argument('--mpdirect',
-                      help='Multiparty direct message\'s name, e.g., '
-                           'sherry,james,johndoe')
+    parser.add_argument("--regex", action="store_true", help="Interpret channel, direct, group, and mpdirect as regex")
+    parser.add_argument("--channel", help="Channel name's, e.g., general")
+    parser.add_argument("--direct", help="Direct message's name, e.g., sherry")
+    parser.add_argument("--group", help="Private group's name")
+    parser.add_argument("--mpdirect", help="Multiparty direct message's name, e.g., " "sherry,james,johndoe")
 
-  # Conditions
-  parser.add_argument('--user',
-                      help='Delete messages/files from certain user')
-  parser.add_argument('--botname',
-                      help='Delete messages/files from certain bots')
-  parser.add_argument('--bot', action='store_true',
-                      help='Delete messages from bots')
+    # Conditions
+    parser.add_argument("--user", help="Delete messages/files from certain user")
+    parser.add_argument("--botname", help="Delete messages/files from certain bots")
+    parser.add_argument("--bot", action="store_true", help="Delete messages from bots")
 
-  # Filter
-  parser.add_argument('--keeppinned', action='store_true', help='exclude parserinned messages from deletion')
-  parser.add_argument('--after', help='Delete messages/files newer than this time (YYYYMMDD)')
-  parser.add_argument('--before', help='Delete messages/files older than this time (YYYYMMDD)')
-  parser.add_argument('--types', help='Delete files of a certain type, e.g., parserosts,pdfs')
-  parser.add_argument('--pattern', help='Delete messages with specified parserattern (regex)')
+    # Filter
+    parser.add_argument("--keeppinned", action="store_true", help="exclude parserinned messages from deletion")
+    parser.add_argument("--after", help="Delete messages/files newer than this time (YYYYMMDD)")
+    parser.add_argument("--before", help="Delete messages/files older than this time (YYYYMMDD)")
+    parser.add_argument("--types", help="Delete files of a certain type, e.g., parserosts,pdfs")
+    parser.add_argument("--pattern", help="Delete messages with specified parserattern (regex)")
 
-  # parsererform or not
-  parser.add_argument('--perform', action='store_true', help='Perform the task')
+    # parsererform or not
+    parser.add_argument("--perform", action="store_true", help="Perform the task")
 
-  args = parser.parse_args()
+    args = parser.parse_args()
 
-  if args.message:
-    if (args.channel is None and args.direct is None and args.group is None and args.mpdirect is None):
-      parser.error('A channel is required when using --message')
+    if args.message:
+        if args.channel is None and args.direct is None and args.group is None and args.mpdirect is None:
+            parser.error("A channel is required when using --message")
 
-  return args
+    return args
 
 
 def main():
-  """
+    """
   cli main entry
   """
-  args = _args()
-  slack = SlackCleaner(args.token, args.log, args.rate)
+    args = _args()
+    slack = SlackCleaner(args.token, args.log, args.rate)
 
-  if args.info:
-    _show_infos(slack)
-  elif args.message:
-    _delete_messages(slack, args)
-  elif args.file:
-    _delete_files(slack, args)
+    if args.info:
+        _show_infos(slack)
+    elif args.message:
+        _delete_messages(slack, args)
+    elif args.file:
+        _delete_files(slack, args)
 
 
-if __name__ == '__main__':
-  import sys
+if __name__ == "__main__":
+    import sys
 
-  sys.exit(main())  # pragma: no cover
+    sys.exit(main())  # pragma: no cover

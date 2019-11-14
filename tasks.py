@@ -49,7 +49,7 @@ def format(c, check=False):
     """
     python_dirs_string = " ".join(PYTHON_DIRS)
     # Run yapf
-    black_options = ""
+    black_options = "--config pyproject.toml"
     c.run("black {} {}".format(black_options, python_dirs_string))
 
 
@@ -58,7 +58,6 @@ def lint(c):
     """
     Lint code
     """
-    c.run("flake8 {}".format(SOURCE_DIR))
     c.run("pylint {}".format(SOURCE_DIR))
 
 
