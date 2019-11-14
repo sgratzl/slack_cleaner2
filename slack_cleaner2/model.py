@@ -2,7 +2,7 @@
 """
  model module for absracting channels, messages, and files
 """
-from typing import Any, Dict, Iterator, Iterable, Optional, List, Union
+from typing import Any, cast, Dict, Generic, Iterator, Iterable, List, Optional, TypeVar, Union
 import time
 from os import path
 import requests
@@ -600,6 +600,31 @@ def _parse_time(time_str: TimeIsh) -> Optional[float]:
     return None
 
 
+ByName = TypeVar('ByName')
+
+
+class ByNameLookup(Generic[ByName]):
+  """
+  helper lookup class
+  """
+  def __init__(self, arr: List[ByName]):
+    self._arr = arr
+
+  def __getitem__(self, key: Union[str, int]) -> Optional[ByName]:
+    if isinstance(key, int):
+      return self._arr[key]
+    return next((v for v in self._arr if cast(Any, v).name == key), None)
+
+  def __getattr__ (self, name: str) -> Optional[ByName]:
+    return self[name]
+
+  def __len__(self) -> int:
+    return len(self._arr)
+
+  def __iter__(self) -> Iterator[ByName]:
+    yield from self._arr
+
+
 class SlackCleaner:
   """
   base class for cleaning up slack providing access to channels and users
@@ -613,11 +638,11 @@ class SlackCleaner:
   """
   underlying slacker instance
   """
-  users: List[SlackUser]
+  users: ByNameLookup[SlackUser]
   """
   list of known users
   """
-  myselfe: SlackUser
+  myself: SlackUser
   """
   the calling slack user, i.e the one whose token is used
   """
@@ -644,6 +669,10 @@ class SlackCleaner:
   conversations: List[Union[SlackChannel, SlackDirectMessage]] = []
   """
   list of channel+group+mpim+ims
+  """
+  c: ByNameLookup[SlackChannel]
+  """
+  alias of .conversations with advanced accessors
   """
 
   def __init__(self, token: str, sleep_for=0, log_to_file=False, slacker: Optional[Slacker] = None, session=None):
@@ -672,7 +701,7 @@ class SlackCleaner:
       slack.rate_limit_retries = 2
       self.api = slack
 
-    self.users = [SlackUser(m, self) for m in _safe_list(slack.users.list(), 'members')]
+    self.users = ByNameLookup[SlackUser]([SlackUser(m, self) for m in _safe_list(slack.users.list(), 'members')])
     self.log.debug('collected users %s', self.users)
 
     self.user = {u.id: u for u in self.users}
@@ -708,6 +737,10 @@ class SlackCleaner:
     # all different types with a similar interface
     self.conversations = self.channels + self.groups + self.mpim
     self.conversations.extend(self.ims)
+
+    # pylint: disable=invalid-name
+    self.c = ByNameLookup[Union[SlackChannel, SlackDirectMessage]](self.conversations)
+    # pylint: enable=invalid-name
 
   @property
   def sleep_for(self) -> float:
