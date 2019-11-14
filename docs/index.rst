@@ -9,9 +9,6 @@ Welcome to slack_cleaner2's documentation!
    installation
    usage
    modules
-   contributing
-   authors
-   history
 
 Indices and tables
 ==================

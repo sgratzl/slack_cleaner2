@@ -32,10 +32,12 @@ import slack_cleaner2
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode']
-autodoc_default_flags = ['members', 'inherited-members', 'show-inheritance']
-autoclass_content = 'both'
-autodoc_member_order = 'bysource'
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.viewcode',
+'sphinxcontrib.napoleon',
+
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -51,7 +53,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'slack_cleaner2'
-copyright = u"2018, Samuel Gratzl"
+copyright = u"2019, Samuel Gratzl"
 author = u"Samuel Gratzl"
 
 # The version info for the project you're documenting, acts as replacement

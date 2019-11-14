@@ -4,6 +4,7 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+invoke = "*"
 mypy = ">=0.740"
 bumpversion = ">=0.5.3"
 watchdog = ">=0.9.0"
