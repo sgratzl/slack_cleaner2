@@ -62,6 +62,7 @@ of the workspace.
 #### General channel and user detection
 - `channels:read`
 - `users:read`
+- `users.profile:read`
 - `users:read.email`
 - `im:read`
 - `mpim:read`
