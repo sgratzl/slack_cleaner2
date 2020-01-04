@@ -67,8 +67,6 @@ of the workspace.
 - `im:read`
 - `mpim:read`
 
-
-
 #### Deleting messages from public channels
 
 - `channels:history`
