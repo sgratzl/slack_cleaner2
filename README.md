@@ -59,6 +59,15 @@ messages or files posted by others, you will need to be an [Owner or
 Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role)
 of the workspace.
 
+#### General channel and user detection
+- `channels:read`
+- `users:read`
+- `users:read.email`
+- `im:read`
+- `mpim:read`
+
+
+
 #### Deleting messages from public channels
 
 - `channels:history`
