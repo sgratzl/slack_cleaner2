@@ -619,6 +619,12 @@ class ByNameLookup(Generic[ByName]):
     def __iter__(self) -> Iterator[ByName]:
         yield from self._arr
 
+    def __str__(self):
+        return str(self._arr)
+
+    def __repr__(self):
+        return repr(self._arr)
+
 
 class SlackCleaner:
     """
