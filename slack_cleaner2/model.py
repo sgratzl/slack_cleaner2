@@ -494,7 +494,7 @@ class SlackFile:
             page = current_page + 1
 
             for sfile in files:
-                yield SlackFile(sfile, slack.user[sfile["user"]], slack)
+                yield SlackFile(sfile, slack.get_user(sfile["user"]), slack)
 
     def __str__(self) -> str:
         return self.name
@@ -711,19 +711,19 @@ class SlackCleaner:
         profile = _safe_attr(slack.users.profile.get(), "profile")
         self.myself = next(u for u in self.users if u.email == profile["email"])
 
-        self.channels = [SlackChannel(m, [self.user[u] for u in m["members"]], slack.channels, self) for m in _safe_list(slack.channels.list(), "channels")]
+        self.channels = [SlackChannel(m, self._get_members(m["members"]), slack.channels, self) for m in _safe_list(slack.channels.list(), "channels")]
         self.log.debug("collected channels %s", self.channels)
 
         self.groups = [
-            SlackChannel(m, [self.user[u] for u in _safe_attr(slack.conversations.members(m["id"]), "members")], slack.conversations, self)
+            SlackChannel(m, self._get_members(_safe_attr(slack.conversations.members(m["id"]), "members")), slack.conversations, self)
             for m in _safe_list(slack.conversations.list(types="private_channel"), "channels")
         ]
         self.log.debug("collected groups %s", self.groups)
 
-        self.mpim = [SlackChannel(m, [self.user[u] for u in m["members"]], slack.mpim, self) for m in _safe_list(slack.mpim.list(), "groups")]
+        self.mpim = [SlackChannel(m, self._get_members(m["members"]), slack.mpim, self) for m in _safe_list(slack.mpim.list(), "groups")]
         self.log.debug("collected mpim %s", self.mpim)
 
-        self.ims = [SlackDirectMessage(m, self.user[m["user"]], slack.im, self) for m in _safe_list(slack.im.list(), "ims")]
+        self.ims = [SlackDirectMessage(m, self.get_user(m["user"]), slack.im, self) for m in _safe_list(slack.im.list(), "ims")]
         self.log.debug("collected ims %s", self.ims)
 
         # all different types with a similar interface
@@ -745,6 +745,14 @@ class SlackCleaner:
     @sleep_for.setter
     def sleep_for(self, value: float):
         self.log.sleep_for = value
+
+    def get_user(self, user_id: str) -> Optional[SlackUser]:
+        if user_id not in self.user:
+            self.log.warn("user %s not found", user_id)
+        return self.user.get(user_id)
+
+    def _get_users(self, ids: List[str]) -> List[SlackUser]:
+        return [u for u in (self.get_user(user_id) for user_id in ids) if u is not None]
 
     def files(
         self, user: Union[str, SlackUser, None] = None, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None, channel: Union[str, SlackChannel, None] = None
@@ -799,7 +807,6 @@ def _safe_attr(res: Any, attr: str) -> Dict[str, Any]:
     if not res["ok"] or attr not in res:
         return dict()
     return res[attr]
-
 
 def _find_user(users: Dict[str, SlackUser], msg: Dict[str, Any]) -> Optional[SlackUser]:
     if "user" not in msg:
