@@ -605,6 +605,9 @@ class ByNameLookup(Generic[ByName]):
     def __init__(self, arr: List[ByName]):
         self._arr = arr
 
+    def append(self, val: ByName):
+        self._arr.append(val)
+
     def __getitem__(self, key: Union[str, int]) -> Optional[ByName]:
         if isinstance(key, int):
             return self._arr[key]
@@ -748,8 +751,26 @@ class SlackCleaner:
 
     def get_user(self, user_id: str) -> Optional[SlackUser]:
         if user_id not in self.user:
-            self.log.warn("user %s not found", user_id)
-        return self.user.get(user_id)
+            self.log.warn("user %s not found - generating dummy one", user_id)
+            return self._add_dummy_user(user_id)
+        return self.user[user_id]
+
+    def _add_dummy_user(self, user_id: str):
+        entry = {
+            "id": user_id,
+            "name": user_id,
+            "profile": {
+                "real_name": user_id,
+                "display_name": user_id,
+                "email": None
+            },
+            "is_bot": False,
+            "is_app_user": False
+        }
+        u = SlackUser(entry, self)
+        self.users.append(u)
+        self.user[u.id] = u
+        return u
 
     def _get_users(self, ids: List[str]) -> List[SlackUser]:
         return [u for u in (self.get_user(user_id) for user_id in ids) if u is not None]
