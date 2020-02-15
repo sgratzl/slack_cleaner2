@@ -763,6 +763,13 @@ class SlackCleaner:
         self.log.sleep_for = value
 
     def resolve_user(self, user_id: str) -> SlackUser:
+        """
+        resolve a given user_id with creating a dummy user if needed
+
+        :param user_id: user id to resolve
+        :type user_id: str
+        :rtype: SlackUser
+        """
         if user_id not in self.users:
             self.log.error("user %s not found - generating dummy one", user_id)
             return self._add_dummy_user(user_id)
