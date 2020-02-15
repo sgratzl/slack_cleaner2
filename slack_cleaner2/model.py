@@ -2,7 +2,7 @@
 """
  model module for absracting channels, messages, and files
 """
-from typing import Any, cast, Dict, Generic, Iterator, Iterable, List, Optional, TypeVar, Union
+from typing import Any, Callable, cast, Dict, Generic, Iterator, Iterable, List, Optional, TypeVar, Union
 import time
 from os import path
 import requests
@@ -213,7 +213,7 @@ class SlackChannel:
             latest = messages[-1]
 
             for msg in reversed(messages) if asc else messages:
-                user = _find_user(self._slack.user, msg)
+                user = _find_user(self._slack, msg)
                 # Delete user messages
                 if msg["type"] == "message":
                     yield SlackMessage(msg, user, self, self._slack)
@@ -231,7 +231,7 @@ class SlackChannel:
         if not res["ok"]:
             return
         for msg in res["messages"]:
-            user = _find_user(self._slack.user, msg)
+            user = _find_user(self._slack, msg)
             # Delete user messages
             if msg["type"] == "message":
                 yield SlackMessage(msg, user, self, self._slack)
@@ -594,35 +594,54 @@ def _parse_time(time_str: TimeIsh) -> Optional[float]:
         return None
 
 
-ByName = TypeVar("ByName")
+ByKey = TypeVar("ByKey")
 
 
-class ByNameLookup(Generic[ByName]):
+class ByKeyLookup(Generic[ByKey]):
     """
-  helper lookup class
-  """
+    helper lookup class
+    """
 
-    def __init__(self, arr: List[ByName]):
+    def __init__(self, arr: List[ByKey], keys: Callable[[ByKey], List[str]]):
         self._arr = arr
+        self._lookup: Dict[str, ByKey] = {}
+        self.keys = keys
+        for v in arr:
+            for k in keys(v):
+                self._lookup[k] = v
 
-    def append(self, val: ByName):
+    def get(self, key: str) -> Optional[ByKey]:
+        """
+        similar to dict.get method
+        """
+        return self[key]
+
+    def __contains__(self, key: Union[ByKey, str]):
+        return key in self._lookup or key in self._arr
+
+    def append(self, val: ByKey):
+        """
+        appends the given value to this list
+        """
         self._arr.append(val)
+        for k in self.keys(val):
+            self._lookup[k] = val
 
-    def __getitem__(self, key: Union[str, int]) -> Optional[ByName]:
+    def __getitem__(self, key: Union[str, int]) -> Optional[ByKey]:
         if isinstance(key, int):
             return self._arr[key]
-        return next((v for v in self._arr if cast(Any, v).name == key), None)
+        return self._lookup.get(key, None)
 
-    def __getattr__(self, name: str) -> Optional[ByName]:
+    def __getattr__(self, name: str) -> Optional[ByKey]:
         return self[name]
 
     def __len__(self) -> int:
         return len(self._arr)
 
-    def __iter__(self) -> Iterator[ByName]:
+    def __iter__(self) -> Iterator[ByKey]:
         yield from self._arr
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self._arr)
 
     def __repr__(self):
@@ -642,17 +661,13 @@ class SlackCleaner:
     """
     underlying slacker instance
     """
-    users: ByNameLookup[SlackUser]
+    users: ByKeyLookup[SlackUser]
     """
     list of known users
     """
     myself: SlackUser
     """
     the calling slack user, i.e the one whose token is used
-    """
-    user: Dict[str, SlackUser] = {}
-    """
-    dictionary lookup from user id to SlackUser object
     """
     channels: List[SlackChannel] = []
     """
@@ -674,7 +689,7 @@ class SlackCleaner:
     """
     list of channel+group+mpim+ims
     """
-    c: ByNameLookup[SlackChannel]
+    c: ByKeyLookup[SlackChannel]
     """
     alias of .conversations with advanced accessors
     """
@@ -705,28 +720,26 @@ class SlackCleaner:
             slack.rate_limit_retries = 2
             self.api = slack
 
-        self.users = ByNameLookup[SlackUser]([SlackUser(m, self) for m in _safe_list(slack.users.list(), "members")])
+        self.users = ByKeyLookup[SlackUser]([SlackUser(m, self) for m in _safe_list(slack.users.list(), "members")], lambda v: [v.name, v.id])
         self.log.debug("collected users %s", self.users)
-
-        self.user = {u.id: u for u in self.users}
 
         # determine one self
         profile = _safe_attr(slack.users.profile.get(), "profile")
         self.myself = next(u for u in self.users if u.email == profile["email"])
 
-        self.channels = [SlackChannel(m, self._get_members(m["members"]), slack.channels, self) for m in _safe_list(slack.channels.list(), "channels")]
+        self.channels = [SlackChannel(m, self._resolve_users(m["members"]), slack.channels, self) for m in _safe_list(slack.channels.list(), "channels")]
         self.log.debug("collected channels %s", self.channels)
 
         self.groups = [
-            SlackChannel(m, self._get_members(_safe_attr(slack.conversations.members(m["id"]), "members")), slack.conversations, self)
+            SlackChannel(m, self._resolve_users(_safe_list(slack.conversations.members(m["id"]), "members")), slack.conversations, self)
             for m in _safe_list(slack.conversations.list(types="private_channel"), "channels")
         ]
         self.log.debug("collected groups %s", self.groups)
 
-        self.mpim = [SlackChannel(m, self._get_members(m["members"]), slack.mpim, self) for m in _safe_list(slack.mpim.list(), "groups")]
+        self.mpim = [SlackChannel(m, self._resolve_users(m["members"]), slack.mpim, self) for m in _safe_list(slack.mpim.list(), "groups")]
         self.log.debug("collected mpim %s", self.mpim)
 
-        self.ims = [SlackDirectMessage(m, self.get_user(m["user"]), slack.im, self) for m in _safe_list(slack.im.list(), "ims")]
+        self.ims = [SlackDirectMessage(m, self.resolve_user(m["user"]), slack.im, self) for m in _safe_list(slack.im.list(), "ims")]
         self.log.debug("collected ims %s", self.ims)
 
         # all different types with a similar interface
@@ -734,7 +747,7 @@ class SlackCleaner:
         self.conversations.extend(self.ims)
 
         # pylint: disable=invalid-name
-        self.c = ByNameLookup[Union[SlackChannel, SlackDirectMessage]](self.conversations)
+        self.c = ByKeyLookup[Union[SlackChannel, SlackDirectMessage]](self.conversations, lambda v: [v.name, v.id])
         # pylint: enable=invalid-name
 
     @property
@@ -749,11 +762,11 @@ class SlackCleaner:
     def sleep_for(self, value: float):
         self.log.sleep_for = value
 
-    def get_user(self, user_id: str) -> Optional[SlackUser]:
-        if user_id not in self.user:
-            self.log.warn("user %s not found - generating dummy one", user_id)
+    def resolve_user(self, user_id: str) -> SlackUser:
+        if user_id not in self.users:
+            self.log.error("user %s not found - generating dummy one", user_id)
             return self._add_dummy_user(user_id)
-        return self.user[user_id]
+        return cast(SlackUser, self.users[user_id])
 
     def _add_dummy_user(self, user_id: str):
         entry = {
@@ -767,13 +780,12 @@ class SlackCleaner:
             "is_bot": False,
             "is_app_user": False
         }
-        u = SlackUser(entry, self)
-        self.users.append(u)
-        self.user[u.id] = u
-        return u
+        user = SlackUser(entry, self)
+        self.users.append(user)
+        return user
 
-    def _get_users(self, ids: List[str]) -> List[SlackUser]:
-        return [u for u in (self.get_user(user_id) for user_id in ids) if u is not None]
+    def _resolve_users(self, ids: List[str]) -> List[SlackUser]:
+        return [self.resolve_user(user_id) for user_id in ids]
 
     def files(
         self, user: Union[str, SlackUser, None] = None, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None, channel: Union[str, SlackChannel, None] = None
@@ -818,7 +830,7 @@ class SlackCleaner:
 
 def _safe_list(res: Any, attr: str) -> List[Any]:
     res = res.body
-    if not res["ok"] or not res[attr]:
+    if not res["ok"] or attr not in res:
         return []
     return res[attr]
 
@@ -829,8 +841,8 @@ def _safe_attr(res: Any, attr: str) -> Dict[str, Any]:
         return dict()
     return res[attr]
 
-def _find_user(users: Dict[str, SlackUser], msg: Dict[str, Any]) -> Optional[SlackUser]:
+def _find_user(slack: SlackCleaner, msg: Dict[str, Any]) -> Optional[SlackUser]:
     if "user" not in msg:
         return None
     userid = msg["user"]
-    return users.get(userid)
+    return slack.resolve_user(userid)
