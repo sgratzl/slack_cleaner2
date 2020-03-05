@@ -91,6 +91,21 @@ class SlackUser:
     def __repr__(self):
         return self.__str__()
 
+    def matches_profile(self, profile: JSONDict) -> bool:
+        """
+        list all files of this user
+        """
+        own_profile = self.json["profile"]
+
+        if own_profile.get("email") == profile.get("email"):
+            return True
+
+        if own_profile.get("real_name_normalized") == profile.get("real_name_normalized") \
+           and own_profile.get("display_name_normalized") == profile.get("display_name_normalized"):
+            return True
+
+        return False
+
     def files(self, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None) -> Iterator["SlackFile"]:
         """
     list all files of this user
@@ -725,7 +740,12 @@ class SlackCleaner:
 
         # determine one self
         profile = _safe_attr(slack.users.profile.get(), "profile")
-        self.myself = next(u for u in self.users if u.email == profile["email"])
+        myself = next((u for u in self.users if u.matches_profile(profile)), None)
+        if not myself:
+            self.log.error("cannot determine my own user, using the first one or a dummy one")
+            self.myself = self.users[0] or self._add_dummy_user("?????")
+        else:
+            self.myself = myself
 
         self.channels = [SlackChannel(m, self._resolve_users(m["members"]), slack.channels, self) for m in _safe_list(slack.channels.list(), "channels")]
         self.log.debug("collected channels %s", self.channels)
