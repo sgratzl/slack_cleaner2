@@ -509,7 +509,7 @@ class SlackFile:
             page = current_page + 1
 
             for sfile in files:
-                yield SlackFile(sfile, slack.get_user(sfile["user"]), slack)
+                yield SlackFile(sfile, slack.resolve_user(sfile["user"]), slack)
 
     def __str__(self) -> str:
         return self.name
