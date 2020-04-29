@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
- model module for absracting channels, messages, and files
+ model module for abstracting channels, messages, and files
 """
 from typing import Any, Callable, cast, Dict, Generic, Iterator, Iterable, List, Optional, TypeVar, Union
 import time
@@ -747,19 +747,27 @@ class SlackCleaner:
         else:
             self.myself = myself
 
-        self.channels = [SlackChannel(m, self._resolve_users(m["members"]), slack.channels, self) for m in _safe_list(slack.channels.list(), "channels")]
+        all_channels = _safe_list(slack.conversations.list(
+            types="public_channel,private_channel,mpim,im"), "channels")
+
+        def _get_channel_users(m: JSONDict):
+            return self._resolve_users(_safe_list(slack.conversations.members(m["id"]), "members"))
+
+        self.channels = [SlackChannel(m, _get_channel_users(m), slack.conversations, self)
+                         for m in all_channels if m.get("is_channel") and not m.get("is_private")]
         self.log.debug("collected channels %s", self.channels)
 
         self.groups = [
-            SlackChannel(m, self._resolve_users(_safe_list(slack.conversations.members(m["id"]), "members")), slack.conversations, self)
-            for m in _safe_list(slack.conversations.list(types="private_channel"), "channels")
-        ]
+            SlackChannel(m, _get_channel_users(m), slack.conversations, self)
+            for m in all_channels if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")]
         self.log.debug("collected groups %s", self.groups)
 
-        self.mpim = [SlackChannel(m, self._resolve_users(m["members"]), slack.mpim, self) for m in _safe_list(slack.mpim.list(), "groups")]
+        self.mpim = [SlackChannel(m, _get_channel_users(
+            m), slack.conversations, self) for m in all_channels if m.get("is_mpim")]
         self.log.debug("collected mpim %s", self.mpim)
 
-        self.ims = [SlackDirectMessage(m, self.resolve_user(m["user"]), slack.im, self) for m in _safe_list(slack.im.list(), "ims")]
+        self.ims = [SlackDirectMessage(m, self.resolve_user(
+            m["user"]), slack.conversations, self) for m in all_channels if m.get("is_im")]
         self.log.debug("collected ims %s", self.ims)
 
         # all different types with a similar interface
