@@ -17,7 +17,7 @@ test_requirements = ["pytest"]
 setup(
     name="slack_cleaner2",
     description="Slack Cleaner2 is an improved slack cleaner version using a python first approach",
-    version="2.0.1",
+    version="2.1.0",
     license="MIT license",
     long_description=readme,
     long_description_content_type="text/markdown",
