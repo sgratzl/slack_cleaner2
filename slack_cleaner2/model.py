@@ -100,8 +100,7 @@ class SlackUser:
         if own_profile.get("email") == profile.get("email"):
             return True
 
-        if own_profile.get("real_name_normalized") == profile.get("real_name_normalized") \
-           and own_profile.get("display_name_normalized") == profile.get("display_name_normalized"):
+        if own_profile.get("real_name_normalized") == profile.get("real_name_normalized") and own_profile.get("display_name_normalized") == profile.get("display_name_normalized"):
             return True
 
         return False
@@ -224,7 +223,6 @@ class SlackChannel:
                     if with_replies and s_msg.has_replies:
                         yield from self.replies_to(s_msg, after=after, before=before, asc=asc)
 
-
     def msgs(self, after: TimeIsh = None, before: TimeIsh = None, asc=False, with_replies=False) -> Iterator["SlackMessage"]:
         """
     retrieve all messages as a generator
@@ -240,6 +238,7 @@ class SlackChannel:
     :return: generator of SlackMessage objects
     :rtype: SlackMessage
     """
+
         def list_f(latest, oldest, limit):
             return self.api.history(self.id, latest=latest, oldest=oldest, limit=limit)
 
@@ -381,7 +380,7 @@ class SlackMessage:
         self.bot = entry.get("subtype") == "bot_message" or "bot_id" in entry
         self.pinned_to = entry.get("pinned_to", False)
         self.has_replies = entry.get("reply_count", 0) > 0
-        self.thread_ts = float(entry.get('thread_ts', entry['ts']))
+        self.thread_ts = float(entry.get("thread_ts", entry["ts"]))
 
     def delete(self, as_user=False) -> Optional[Exception]:
         """
@@ -776,27 +775,21 @@ class SlackCleaner:
         else:
             self.myself = myself
 
-        all_channels = _safe_list(slack.conversations.list(
-            types="public_channel,private_channel,mpim,im"), "channels")
+        all_channels = _safe_list(slack.conversations.list(types="public_channel,private_channel,mpim,im"), "channels")
 
         def _get_channel_users(channel: JSONDict):
             return self._resolve_users(_safe_list(slack.conversations.members(channel["id"]), "members"))
 
-        self.channels = [SlackChannel(m, _get_channel_users(m), slack.conversations, self)
-                         for m in all_channels if m.get("is_channel") and not m.get("is_private")]
+        self.channels = [SlackChannel(m, _get_channel_users(m), slack.conversations, self) for m in all_channels if m.get("is_channel") and not m.get("is_private")]
         self.log.debug("collected channels %s", self.channels)
 
-        self.groups = [
-            SlackChannel(m, _get_channel_users(m), slack.conversations, self)
-            for m in all_channels if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")]
+        self.groups = [SlackChannel(m, _get_channel_users(m), slack.conversations, self) for m in all_channels if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")]
         self.log.debug("collected groups %s", self.groups)
 
-        self.mpim = [SlackChannel(m, _get_channel_users(
-            m), slack.conversations, self) for m in all_channels if m.get("is_mpim")]
+        self.mpim = [SlackChannel(m, _get_channel_users(m), slack.conversations, self) for m in all_channels if m.get("is_mpim")]
         self.log.debug("collected mpim %s", self.mpim)
 
-        self.ims = [SlackDirectMessage(m, self.resolve_user(
-            m["user"]), slack.conversations, self) for m in all_channels if m.get("is_im")]
+        self.ims = [SlackDirectMessage(m, self.resolve_user(m["user"]), slack.conversations, self) for m in all_channels if m.get("is_im")]
         self.log.debug("collected ims %s", self.ims)
 
         # all different types with a similar interface
@@ -833,17 +826,7 @@ class SlackCleaner:
         return cast(SlackUser, self.users[user_id])
 
     def _add_dummy_user(self, user_id: str):
-        entry = {
-            "id": user_id,
-            "name": user_id,
-            "profile": {
-                "real_name": user_id,
-                "display_name": user_id,
-                "email": None
-            },
-            "is_bot": False,
-            "is_app_user": False
-        }
+        entry = {"id": user_id, "name": user_id, "profile": {"real_name": user_id, "display_name": user_id, "email": None}, "is_bot": False, "is_app_user": False}
         user = SlackUser(entry, self)
         self.users.append(user)
         return user
@@ -906,6 +889,7 @@ def _safe_attr(res: Any, attr: str) -> Dict[str, Any]:
     if not res["ok"] or attr not in res:
         return dict()
     return res[attr]
+
 
 def _find_user(slack: SlackCleaner, msg: Dict[str, Any]) -> Optional[SlackUser]:
     if "user" not in msg:
