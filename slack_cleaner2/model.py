@@ -121,7 +121,7 @@ class SlackUser:
     """
         return SlackFile.list(self._slack, user=self.id, after=after, before=before, types=types)
 
-    def msgs(self, after: TimeIsh = None, before: TimeIsh = None, with_replies = False) -> Iterator["SlackMessage"]:
+    def msgs(self, after: TimeIsh = None, before: TimeIsh = None, with_replies=False) -> Iterator["SlackMessage"]:
         """
     list all messages of this user
 
@@ -779,8 +779,8 @@ class SlackCleaner:
         all_channels = _safe_list(slack.conversations.list(
             types="public_channel,private_channel,mpim,im"), "channels")
 
-        def _get_channel_users(m: JSONDict):
-            return self._resolve_users(_safe_list(slack.conversations.members(m["id"]), "members"))
+        def _get_channel_users(channel: JSONDict):
+            return self._resolve_users(_safe_list(slack.conversations.members(channel["id"]), "members"))
 
         self.channels = [SlackChannel(m, _get_channel_users(m), slack.conversations, self)
                          for m in all_channels if m.get("is_channel") and not m.get("is_private")]
@@ -872,7 +872,7 @@ class SlackCleaner:
     """
         return SlackFile.list(self, user=user, after=after, before=before, types=types, channel=channel)
 
-    def msgs(self, channels: Optional[Iterable[SlackChannel]] = None, after: TimeIsh = None, before: TimeIsh = None, with_replies = False) -> Iterator[SlackMessage]:
+    def msgs(self, channels: Optional[Iterable[SlackChannel]] = None, after: TimeIsh = None, before: TimeIsh = None, with_replies=False) -> Iterator[SlackMessage]:
         """
     list all known slack messages for the given parameter as a generator
 
