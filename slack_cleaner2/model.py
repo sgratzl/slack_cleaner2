@@ -121,7 +121,7 @@ class SlackUser:
     """
         return SlackFile.list(self._slack, user=self.id, after=after, before=before, types=types)
 
-    def msgs(self, after: TimeIsh = None, before: TimeIsh = None) -> Iterator["SlackMessage"]:
+    def msgs(self, after: TimeIsh = None, before: TimeIsh = None, with_replies = False) -> Iterator["SlackMessage"]:
         """
     list all messages of this user
 
@@ -129,10 +129,12 @@ class SlackUser:
     :type after: int,str,time
     :param before: limit to entries before the given timestamp
     :type before: int,str,time
+    :type with_replies: boolean
+    :return: generator of SlackMessage objects
     :return: generator of SlackMessage objects
     :rtype: SlackMessage
     """
-        for msg in self._slack.msgs((c for c in self._slack.conversations if self in c.members), after=after, before=before):
+        for msg in self._slack.msgs((c for c in self._slack.conversations if self in c.members), after=after, before=before, with_replies=with_replies):
             if msg.user == self:
                 yield msg
 
@@ -191,19 +193,7 @@ class SlackChannel:
     def __repr__(self):
         return self.__str__()
 
-    def msgs(self, after: TimeIsh = None, before: TimeIsh = None, asc=False) -> Iterator["SlackMessage"]:
-        """
-    retrieve all messages as a generator
-
-    :param after: limit to entries after the given timestamp
-    :type after: int,str,time
-    :param before: limit to entries before the given timestamp
-    :type before: int,str,time
-    :param asc: retunging a batch of messages in ascending order
-    :type asc: boolean
-    :return: generator of SlackMessage objects
-    :rtype: SlackMessage
-    """
+    def _iter_message(self, list_f, after: TimeIsh = None, before: TimeIsh = None, asc=False, with_replies=False) -> Iterator["SlackMessage"]:
         after = _parse_time(after)
         before = _parse_time(before)
         self._slack.log.debug("list msgs of %s (after=%s, before=%s)", self, after, before)
@@ -211,10 +201,7 @@ class SlackChannel:
         oldest = after
         has_more = True
         while has_more:
-            if self.api == self._slack.api.conversations:
-                res = self.api.history(self.id, latest, oldest, limit=1000).body
-            else:
-                res = self.api.history(self.id, latest, oldest, count=1000).body
+            res = list_f(latest, oldest, limit=1000).body
             if not res["ok"]:
                 return
             messages = res["messages"]
@@ -231,25 +218,56 @@ class SlackChannel:
                 user = _find_user(self._slack, msg)
                 # Delete user messages
                 if msg["type"] == "message":
-                    yield SlackMessage(msg, user, self, self._slack)
+                    s_msg = SlackMessage(msg, user, self, self._slack)
+                    yield s_msg
 
-    def replies_to(self, base_msg: "SlackMessage") -> Iterator["SlackMessage"]:
+                    if with_replies and s_msg.has_replies:
+                        yield from self.replies_to(s_msg, after=after, before=before, asc=asc)
+
+
+    def msgs(self, after: TimeIsh = None, before: TimeIsh = None, asc=False, with_replies=False) -> Iterator["SlackMessage"]:
+        """
+    retrieve all messages as a generator
+
+    :param after: limit to entries after the given timestamp
+    :type after: int,str,time
+    :param before: limit to entries before the given timestamp
+    :type before: int,str,time
+    :param asc: returning a batch of messages in ascending order
+    :type asc: boolean
+    :param with_replies: also iterate over all replies / threads
+    :type with_replies: boolean
+    :return: generator of SlackMessage objects
+    :rtype: SlackMessage
+    """
+        def list_f(latest, oldest, limit):
+            return self.api.history(self.id, latest=latest, oldest=oldest, limit=limit)
+
+        yield from self._iter_message(list_f, after, before, asc, with_replies)
+
+    def replies_to(self, base_msg: "SlackMessage", after: TimeIsh = None, before: TimeIsh = None, asc=False) -> Iterator["SlackMessage"]:
         """
     returns the replies to a given SlackMessage instance
 
     :param base_msg: message instance to find replies to
     :type base_msg: SlackMessage
+    :param after: limit to entries after the given timestamp
+    :type after: int,str,time
+    :param before: limit to entries before the given timestamp
+    :type before: int,str,time
+    :param asc: returning a batch of messages in ascending order
+    :type asc: boolean
     :return: generator of SlackMessage replies
     :rtype: SlackMessage
     """
-        res = self.api.replies(self.id, base_msg.ts).body
-        if not res["ok"]:
-            return
-        for msg in res["messages"]:
-            user = _find_user(self._slack, msg)
-            # Delete user messages
-            if msg["type"] == "message":
-                yield SlackMessage(msg, user, self, self._slack)
+        ts = base_msg.json.get("thread_ts", base_msg.json["ts"])
+
+        def list_f(after, before, limit):
+            return self.api.replies(self.id, ts, latest=before, oldest=after, limit=limit)
+
+        for msg in self._iter_message(list_f, after, before, asc):
+            if base_msg.ts != msg.ts:  # don't yield itself
+                yield msg
 
     def files(self, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None) -> Iterator["SlackFile"]:
         """
@@ -302,6 +320,10 @@ class SlackMessage:
     """
   message timestamp
   """
+    thread_ts: Optional[float]
+    """
+  message timestamp for its thread
+  """
 
     text: str
     """
@@ -333,6 +355,11 @@ class SlackMessage:
   the underlying slack response as json
   """
 
+    has_replies = False
+    """
+  whether the message has any replies
+  """
+
     def __init__(self, entry: JSONDict, user: Optional[SlackUser], channel: SlackChannel, slack: "SlackCleaner"):
         """
     :param entry: json dict entry as returned by slack api
@@ -353,6 +380,8 @@ class SlackMessage:
         self.user = user
         self.bot = entry.get("subtype") == "bot_message" or "bot_id" in entry
         self.pinned_to = entry.get("pinned_to", False)
+        self.has_replies = entry.get("reply_count", 0) > 0
+        self.thread_ts = float(entry.get('thread_ts', entry['ts']))
 
     def delete(self, as_user=False) -> Optional[Exception]:
         """
@@ -843,7 +872,7 @@ class SlackCleaner:
     """
         return SlackFile.list(self, user=user, after=after, before=before, types=types, channel=channel)
 
-    def msgs(self, channels: Optional[Iterable[SlackChannel]] = None, after: TimeIsh = None, before: TimeIsh = None) -> Iterator[SlackMessage]:
+    def msgs(self, channels: Optional[Iterable[SlackChannel]] = None, after: TimeIsh = None, before: TimeIsh = None, with_replies = False) -> Iterator[SlackMessage]:
         """
     list all known slack messages for the given parameter as a generator
 
@@ -853,13 +882,15 @@ class SlackCleaner:
     :type after: int,str,time
     :param before: limit to entries before the given timestamp
     :type before: int,str,time
+    :type with_replies: boolean
+    :return: generator of SlackMessage objects
     :return: generator of SlackMessage objects
     :rtype: SlackMessage
     """
         if not channels:
             channels = self.conversations
         for channel in channels:
-            for msg in channel.msgs(after=after, before=before):
+            for msg in channel.msgs(after=after, before=before, with_replies=with_replies):
                 yield msg
 
 
