@@ -358,6 +358,10 @@ class SlackMessage:
     """
   whether the message has any replies
   """
+    files: List["SlackFile"] = []
+    """
+  files part of this message
+  """
 
     def __init__(self, entry: JSONDict, user: Optional[SlackUser], channel: SlackChannel, slack: "SlackCleaner"):
         """
@@ -381,6 +385,7 @@ class SlackMessage:
         self.pinned_to = entry.get("pinned_to", False)
         self.has_replies = entry.get("reply_count", 0) > 0
         self.thread_ts = float(entry.get("thread_ts", entry["ts"]))
+        self.files = [SlackFile(f, user if user else slack.resolve_user(f["user"]), slack) for f in entry.get("files", [])]
 
     def delete(self, as_user=False) -> Optional[Exception]:
         """
