@@ -134,8 +134,12 @@ You can grant these permissions to the app by:
 ### Release
 
 ```bash
-python setup.py clean sdist bdist_wheel
-twine upload dist/*
+bumpversion patch
+git commit -am 'release vX.X.X'
+git tag vX.X.X
+invoke release
+git push 
+git push --tags
 ```
 
 change version in `slack_cleaner2/_info.py`
