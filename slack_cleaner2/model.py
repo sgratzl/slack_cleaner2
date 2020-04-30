@@ -362,6 +362,11 @@ class SlackMessage:
     """
   files part of this message
   """
+    is_tombstone = False
+    """
+  whether the is a tombstone message as in 'message was deleted'
+  thus cannot be deleted but is thread can
+  """
 
     def __init__(self, entry: JSONDict, user: Optional[SlackUser], channel: SlackChannel, slack: "SlackCleaner"):
         """
@@ -386,20 +391,39 @@ class SlackMessage:
         self.has_replies = entry.get("reply_count", 0) > 0
         self.thread_ts = float(entry.get("thread_ts", entry["ts"]))
         self.files = [SlackFile(f, user if user else slack.resolve_user(f["user"]), slack) for f in entry.get("files", [])]
+        self.is_tombstone = entry.get("subtype", None) == "tombstone"
 
-    def delete(self, as_user=False) -> Optional[Exception]:
+    def delete(self, as_user=False, files=False, replies=False) -> Optional[Exception]:
         """
     deletes this message
 
     :param as_user: trigger the delete operation as the user identified by the token
     :type as_user: bool
+    :param files: delete attached files, too
+    :type files: bool
+    :param replies: delete thread replies, too
+    :type replies: bool
     :return: None if successful else error
     :rtype: Exception
     """
         try:
             # No response is a good response
-            self.api.delete(self._channel.id, self.json["ts"], as_user=as_user)
-            self._slack.log.deleted(self)
+            if not self.is_tombstone:
+                self.api.delete(self._channel.id, self.json["ts"], as_user=as_user)
+                self._slack.log.deleted(self)
+            else:
+                self._slack.log.debug("Cannot delete tombstone message - but its replies and files")
+
+            if files and self.files:
+                for sfile in self.files:
+                    error = sfile.delete()
+                    if error:
+                        return error
+            if replies and self.has_replies:
+                for reply in self.replies():
+                    error = reply.delete(as_user=as_user, files=files)
+                    if error:
+                        return error
             return None
         except Exception as error:
             self._slack.log.deleted(self, error)
