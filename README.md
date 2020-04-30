@@ -34,9 +34,11 @@ s.conversations
 
 # delete all messages in -bots channels
 for msg in s.msgs(filter(match('.*-bots'), s.conversations)):
-  msg.delete()
+  # delete messages, its files, and all its replies (thread)
+  msg.delete(replies=True, files=True)
 
-for msg in s.c.general.msgs():
+# delete all general messages and also iterate over all replies
+for msg in s.c.general.msgs(with_replies=True):
   msg.delete()
 ```
 
