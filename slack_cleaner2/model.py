@@ -715,7 +715,7 @@ class ByKeyLookup(Generic[ByKey]):
 
     def __getitem__(self, key: Union[str, int]) -> Optional[ByKey]:
         if isinstance(key, int):
-            return self._arr[key] if key >= 0 and key < len(self._arr) else None
+            return self._arr[key] if 0 <= key < len(self._arr) else None
         return self._lookup.get(key, None)
 
     def __getattr__(self, name: str) -> Optional[ByKey]:
