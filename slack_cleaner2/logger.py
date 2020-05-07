@@ -76,7 +76,7 @@ class SlackLogger:
         self.critical = self._log.critical
         self.log = self._log.log
 
-    def deleted(self, file_or_msg: Any, error: Optional[Exception] = None):
+    def deleted(self, file_or_msg: Any, error: Optional[Exception] = None, scope: Optional[str] = None):
         """
     log a deleted file or message with optional error
     """
@@ -86,7 +86,10 @@ class SlackLogger:
         if error:
             sys.stdout.write(Fore.RED + "x" + Fore.RESET)
             sys.stdout.flush()
-            self.warning("cannot delete entry: %s: %s", file_or_msg, error)
+            if str(error) == 'missing_scope' and scope:
+                self.warning("cannot delete entry: %s: missing '%s' scope", file_or_msg, scope)
+            else:
+                self.warning("cannot delete entry: %s: %s", file_or_msg, error)
         else:
             sys.stdout.write(".")
             sys.stdout.flush()

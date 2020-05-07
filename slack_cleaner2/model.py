@@ -252,7 +252,7 @@ class SlackChannel:
         def list_f(latest, oldest, limit):
             def fun():
                 return self.api.history(self.id, latest=latest, oldest=oldest, limit=limit)
-            return self._slack.safe_api(fun, ["messages", "has_more"], [[], False], [self._scope], 'conversations.history')
+            return self._slack.safe_api(fun, ["messages", "has_more"], [[], False], [self._scope()], 'conversations.history')
 
         yield from self._iter_message(list_f, after, before, asc, with_replies)
 
@@ -276,7 +276,7 @@ class SlackChannel:
         def list_f(after, before, limit):
             def fun():
                 return self.api.replies(self.id, ts, latest=before, oldest=after, limit=limit)
-            return self._slack.safe_api(fun, ["messages", "has_more"], [[], False], [self._scope], 'conversations.replies')
+            return self._slack.safe_api(fun, ["messages", "has_more"], [[], False], [self._scope()], 'conversations.replies')
 
         for msg in self._iter_message(list_f, after, before, asc):
             if base_msg.ts != msg.ts:  # don't yield itself
@@ -440,7 +440,7 @@ class SlackMessage:
                         return error
             return None
         except Exception as error:
-            self._slack.log.deleted(self, error)
+            self._slack.log.deleted(self, error, 'chat:write')
             return error
 
     def replies(self) -> Iterator["SlackMessage"]:
@@ -601,7 +601,7 @@ class SlackFile:
             self._slack.log.deleted(self)
             return None
         except Exception as error:
-            self._slack.log.deleted(self, error)
+            self._slack.log.deleted(self, error, 'files:write')
             return error
 
     def download_response(self, **kwargs) -> Response:
@@ -715,7 +715,7 @@ class ByKeyLookup(Generic[ByKey]):
 
     def __getitem__(self, key: Union[str, int]) -> Optional[ByKey]:
         if isinstance(key, int):
-            return self._arr[key]
+            return self._arr[key] if key >= 0 and key < len(self._arr) else None
         return self._lookup.get(key, None)
 
     def __getattr__(self, name: str) -> Optional[ByKey]:
@@ -811,7 +811,7 @@ class SlackCleaner:
         self.log.debug("collected users %s", self.users)
 
         # determine one self
-        my_id = self.safe_api(self.api.auth.test, 'user_id', None)
+        my_id = self.safe_api(self.api.auth.test, 'user_id', None, [], 'auth.test')
         myself = next((u for u in self.users if u.id == my_id), None)
         if not myself:
             self.log.error("cannot determine my own user, using the first one or a dummy one")
@@ -883,9 +883,9 @@ class SlackCleaner:
             return res.get(attr, default_value)
         except Error as error:
             if str(error) == 'missing_scope' and scopes:
-                self.log.warning('%s: missing scope error: %s is missing', method, f'one of {scopes}' if len(scopes) != 1 else scopes[0])
+                self.log.warning('%s: missing scope error: %s is missing', method, f"one of '{scopes}'" if len(scopes) != 1 else scopes[0])
             else:
-                self.log.warning('%s: unknown error occurred %s', method, error)
+                self.log.error('%s: unknown error occurred: %s', method, error)
             return default_value
 
     @property

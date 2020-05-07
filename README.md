@@ -45,83 +45,74 @@ for msg in s.c.general.msgs(with_replies=True):
 
 ## Tokens
 
-You will need to generate a Slack legacy *user* token to use slack-cleaner. You can generate a token [here](https://api.slack.com/custom-integrations/legacy-tokens):
-
-[https://api.slack.com/custom-integrations/legacy-tokens](https://api.slack.com/custom-integrations/legacy-tokens). 
-
-The token should start with **xoxp** and not like bot tokens with **xoxb**.
-
-## Permission Scopes needed
-
-The permissions to grant depend on what you are going to use the script for.
-Grant the permissions below depending on your use.
-
-Beyond granting permissions, if you wish to use this script to delete
-messages or files posted by others, you will need to be an [Owner or
-Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role)
-of the workspace.
-
-#### General channel and user detection
-- `channels:read`
-- `users:read`
-- `users.profile:read`
-- `users:read.email`
-- `im:read`
-- `mpim:read`
-
-#### Deleting messages from public channels
-
-- `channels:history`
-- `channels:read`
-- `chat:write:user`
-- `users:read`
-
-#### Deleting messages from private channels
-
-- `groups:history`
-- `groups:read`
-- `chat:write:user`
-- `users:read`
-
-#### Deleting messages from 1:1 IMs
-
-- `im:history`
-- `im:read`
-- `chat:write:user`
-- `users:read`
-
-#### Deleting messages from multi-person IMs
-
-- `mpim:history`
-- `mpim:read`
-- `chat:write:user`
-- `users:read`
-
-#### Deleting files
-
-- `files:read`
-- `files:write:user`
-- `users:read`
-
-
-## Configuring app
-
-The cleaner needs you to give Slack's API permission to let it run the
+The slack cleaner needs you to give Slack's API permission to let it run the
 operations it needs. You grant these by registering it as an app in the
 workspace you want to use it in.
 
 You can grant these permissions to the app by:
 
 1. going to [Your Apps](https://api.slack.com/apps)
-2. select 'Create New App', fill out an App Name (eg 'Slack Cleaner') and
+1. select 'Create New App', fill out an App Name (eg 'Slack Cleaner') and
    select the Slack workspace you want to use it in
-3. select 'OAuth & Permissions' in the sidebar
-4. scroll down to Scopes and select all scopes you need
-5. select 'Save changes'
-6. select 'Install App to Workspace'
-7. review the permissions and press 'Authorize'
-8. copy the 'OAuth Access Token' shown, and use this token as the `--token`
+1. select 'OAuth & Permissions' in the sidebar
+1. scroll down to **User Token Scope** and select all scopes you need according to list below
+1. select 'Save changes'
+1. select 'Install App to Workspace'
+1. review the permissions and press 'Authorize'
+1. copy the 'OAuth Access Token' shown, and use this token as the `--token`
    argument to the script
+
+The token should start with **xoxp** and not like bot tokens with **xoxb**.
+
+Beyond granting permissions, if you wish to use this script to delete
+messages or files posted by others, you will need to be an [Owner or
+Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role) of the workspace.
+
+### User Token Scopes by Use Case
+
+#### General channel and user detection
+
+- `users:read`
+- `channels:read`
+- `groups:read`
+- `im:read`
+- `mpim:read`
+
+#### Deleting messages from public channels
+
+- `users:read`
+- `channels:read`
+- `channels:history`
+- `chat:write`
+
+#### Deleting messages from private channels
+
+- `users:read`
+- `groups:read`
+- `groups:history`
+- `chat:write`
+
+#### Deleting messages from 1:1 IMs
+
+**Note**: You can only delete your own message, not the ones of others. This is due to a restriction in the Slack API and there is nothing one can do about it.
+
+- `im:read`
+- `im:history`
+- `users:read`
+- `chat:write`
+
+#### Deleting messages from multi-person IMs
+
+- `mpim:read`
+- `mpim:history`
+- `users:read`
+- `chat:write`
+
+#### Deleting files
+
+- `files:read`
+- `users:read`
+- `files:write`
 
 
 ## Credits
