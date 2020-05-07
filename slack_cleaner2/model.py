@@ -407,11 +407,11 @@ class SlackMessage:
         self.files = [SlackFile(f, user if user else slack.resolve_user(f["user"]), slack) for f in entry.get("files", [])]
         self.is_tombstone = entry.get("subtype", None) == "tombstone"
 
-    def delete(self, as_user=False, files=False, replies=False) -> Optional[Exception]:
+    def delete(self, as_user=True, files=False, replies=False) -> Optional[Exception]:
         """
     deletes this message
 
-    :param as_user: trigger the delete operation as the user identified by the token
+    :param as_user: trigger the delete operation as the user identified by the token (default True)
     :type as_user: bool
     :param files: delete attached files, too
     :type files: bool
@@ -842,7 +842,7 @@ class SlackCleaner:
         self.log.debug("collected mpim %s", self.mpim)
 
         raw_ims = self.safe_api(lambda: self.api.conversations.list(
-            types="im"), "channels", [], ['im:read'], 'conversations.list(im)')
+            types="im"), "channels", [], ['im:read'], 'conversations.list (im)')
         self.ims = [SlackDirectMessage(m, self.resolve_user(
             m["user"]), self.api.conversations, self) for m in raw_ims if m.get("is_im")]
         self.log.debug("collected ims %s", self.ims)
