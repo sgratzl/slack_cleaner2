@@ -43,7 +43,7 @@ for msg in s.c.general.msgs(with_replies=True):
 ```
 
 
-## Tokens
+## Token
 
 The slack cleaner needs you to give Slack's API permission to let it run the
 operations it needs. You grant these by registering it as an app in the
@@ -59,14 +59,14 @@ You can grant these permissions to the app by:
 1. select 'Save changes'
 1. select 'Install App to Workspace'
 1. review the permissions and press 'Authorize'
-1. copy the 'OAuth Access Token' shown, and use this token as the `--token`
-   argument to the script
+1. copy the 'OAuth Access Token' shown, and use as the first argument to `SlackCleaner`
 
 The token should start with **xoxp** and not like bot tokens with **xoxb**.
 
-Beyond granting permissions, if you wish to use this script to delete
+Beyond granting permissions, if you wish to use this library to delete
 messages or files posted by others, you will need to be an [Owner or
 Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role) of the workspace.
+
 
 ### User Token Scopes by Use Case
 
@@ -94,7 +94,7 @@ Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role
 
 #### Deleting messages from 1:1 IMs
 
-**Note**: You can only delete your own message, not the ones of others. This is due to a restriction in the Slack API and there is nothing one can do about it.
+**Note**: You can only delete your own messages, not the ones of others. This is due to a restriction in the Slack API and there is nothing one can do about it.
 
 - `im:read`
 - `im:history`
@@ -113,6 +113,10 @@ Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role
 - `files:read`
 - `users:read`
 - `files:write`
+
+### All User Token scopes
+
+![user token scopes](https://user-images.githubusercontent.com/4129778/81291893-f20b9580-906a-11ea-80a8-f19f3e6878e9.png)
 
 
 ## Credits
