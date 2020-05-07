@@ -2,13 +2,14 @@
 """
  model module for abstracting channels, messages, and files
 """
-from typing import Any, Callable, cast, Dict, Generic, Iterator, Iterable, List, Optional, TypeVar, Union
+from typing import Any, Callable, cast, Dict, Generic, Iterator, Iterable, List, Optional, Sequence, TypeVar, Union
 import time
 from os import path
+from enum import Enum
 import requests
 from requests import Response
 from requests.sessions import Session
-from slacker import Slacker
+from slacker import Slacker, Error
 
 from .logger import SlackLogger
 
@@ -91,20 +92,6 @@ class SlackUser:
     def __repr__(self):
         return self.__str__()
 
-    def matches_profile(self, profile: JSONDict) -> bool:
-        """
-        list all files of this user
-        """
-        own_profile = self.json["profile"]
-
-        if own_profile.get("email") == profile.get("email"):
-            return True
-
-        if own_profile.get("real_name_normalized") == profile.get("real_name_normalized") and own_profile.get("display_name_normalized") == profile.get("display_name_normalized"):
-            return True
-
-        return False
-
     def files(self, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None) -> Iterator["SlackFile"]:
         """
     list all files of this user
@@ -138,6 +125,16 @@ class SlackUser:
                 yield msg
 
 
+class SlackChannelType(Enum):
+    """
+    enum class for defining the channel type
+    """
+    PUBLIC = 1
+    PRIVATE = 2
+    MPIM = 3
+    IM = 4
+
+
 class SlackChannel:
     """
   internal model of a slack channel, group, mpim, im
@@ -168,12 +165,19 @@ class SlackChannel:
   the underlying slack response as json
   """
 
-    def __init__(self, entry: JSONDict, members: List[SlackUser], api: Any, slack: "SlackCleaner"):
+    type: SlackChannelType
+    """
+  the channel type
+  """
+
+    def __init__(self, entry: JSONDict, members: List[SlackUser], channel_type: SlackChannelType, api: Any, slack: "SlackCleaner"):
         """
     :param entry: json dict entry as returned by slack api
     :type entry: dict
     :param members: list of members
     :type members: [SlackUser]
+    :param channel_type: the channel type
+    :type channel_type: SlackChannelType
     :param api: Slacker sub api
     :param slack: slack cleaner instance
     :type slack: SlackCleaner
@@ -182,6 +186,7 @@ class SlackChannel:
         self.id = entry["id"]
         self.name = entry.get("name", self.id)
         self.members = members
+        self.type = channel_type
         self.api = api
         self._slack = slack
         self.json = entry
@@ -192,6 +197,15 @@ class SlackChannel:
     def __repr__(self):
         return self.__str__()
 
+    def _scope(self):
+        if self.type == SlackChannelType.PRIVATE:
+            return 'groups:history'
+        if self.type == SlackChannelType.MPIM:
+            return 'mpim:history'
+        if self.type == SlackChannelType.IM:
+            return 'im:history'
+        return 'channels:history'
+
     def _iter_message(self, list_f, after: TimeIsh = None, before: TimeIsh = None, asc=False, with_replies=False) -> Iterator["SlackMessage"]:
         after = _parse_time(after)
         before = _parse_time(before)
@@ -200,11 +214,7 @@ class SlackChannel:
         oldest = after
         has_more = True
         while has_more:
-            res = list_f(latest, oldest, limit=1000).body
-            if not res["ok"]:
-                return
-            messages = res["messages"]
-            has_more = res["has_more"]
+            messages, has_more = list_f(latest, oldest, limit=1000)
 
             if not messages:
                 return
@@ -240,7 +250,9 @@ class SlackChannel:
     """
 
         def list_f(latest, oldest, limit):
-            return self.api.history(self.id, latest=latest, oldest=oldest, limit=limit)
+            def fun():
+                return self.api.history(self.id, latest=latest, oldest=oldest, limit=limit)
+            return self._slack.safe_api(fun, ["messages", "has_more"], [[], False], [self._scope], 'conversations.history')
 
         yield from self._iter_message(list_f, after, before, asc, with_replies)
 
@@ -262,7 +274,9 @@ class SlackChannel:
         ts = base_msg.json.get("thread_ts", base_msg.json["ts"])
 
         def list_f(after, before, limit):
-            return self.api.replies(self.id, ts, latest=before, oldest=after, limit=limit)
+            def fun():
+                return self.api.replies(self.id, ts, latest=before, oldest=after, limit=limit)
+            return self._slack.safe_api(fun, ["messages", "has_more"], [[], False], [self._scope], 'conversations.replies')
 
         for msg in self._iter_message(list_f, after, before, asc):
             if base_msg.ts != msg.ts:  # don't yield itself
@@ -305,7 +319,7 @@ class SlackDirectMessage(SlackChannel):
     :type slack: SlackCleaner
     """
 
-        super(SlackDirectMessage, self).__init__(entry, [user], api, slack)
+        super(SlackDirectMessage, self).__init__(entry, [user], SlackChannelType.IM, api, slack)
         self.name = user.name
         self.user = user
 
@@ -523,7 +537,7 @@ class SlackFile:
 
     @staticmethod
     def list(
-        slack, user: Union[str, SlackUser, None] = None, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None, channel: Union[str, SlackChannel, None] = None
+        slack: "SlackCleaner", user: Union[str, SlackUser, None] = None, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None, channel: Union[str, SlackChannel, None] = None
     ) -> Iterator["SlackFile"]:
         """
     list all given files
@@ -554,14 +568,14 @@ class SlackFile:
         slack.log.debug("list all files(user=%s, after=%s, before=%s, types=%s, channel=%s", user, after, before, types, channel)
 
         while has_more:
-            res = api.list(user=user, ts_from=after, ts_to=before, types=types, channel=channel, page=page, count=100).body
+            files, paging = slack.safe_api(lambda: api.list(user=user, ts_from=after, ts_to=before, types=types, channel=channel, page=page, count=100),
+            ['files', 'paging'], [[], None], ['files:read'], 'files.list')
 
-            if not res["ok"]:
+            if not files:
                 return
 
-            files = res["files"]
-            current_page = res["paging"]["page"]
-            total_pages = res["paging"]["pages"]
+            current_page = paging["page"]
+            total_pages = paging["pages"]
             has_more = current_page < total_pages
             page = current_page + 1
 
@@ -788,37 +802,49 @@ class SlackCleaner:
         if slacker:
             self.api = slacker
         else:
-            slack = Slacker(token, session=session if session else Session())
-            slack.rate_limit_retries = 2
+            slack = Slacker(token, session=session if session else Session(), rate_limit_retries=2)
             self.api = slack
 
-        self.users = ByKeyLookup[SlackUser]([SlackUser(m, self) for m in _safe_list(slack.users.list(), "members")], lambda v: [v.name, v.id])
+        raw_users = self.safe_api(
+            self.api.users.list, "members", [], ['users:read (bot, user)'], 'users.list')
+        self.users = ByKeyLookup[SlackUser]([SlackUser(m, self) for m in raw_users], lambda v: [v.name, v.id])
         self.log.debug("collected users %s", self.users)
 
         # determine one self
-        profile = _safe_attr(slack.users.profile.get(), "profile")
-        myself = next((u for u in self.users if u.matches_profile(profile)), None)
+        my_id = self.safe_api(self.api.auth.test, 'user_id', None)
+        myself = next((u for u in self.users if u.id == my_id), None)
         if not myself:
             self.log.error("cannot determine my own user, using the first one or a dummy one")
             self.myself = self.users[0] or self._add_dummy_user("?????")
         else:
             self.myself = myself
 
-        all_channels = _safe_list(slack.conversations.list(types="public_channel,private_channel,mpim,im"), "channels")
-
         def _get_channel_users(channel: JSONDict):
-            return self._resolve_users(_safe_list(slack.conversations.members(channel["id"]), "members"))
+            raw_members = self.safe_api(lambda: self.api.conversations.members(channel["id"]), "members", [])
+            return self._resolve_users(raw_members)
 
-        self.channels = [SlackChannel(m, _get_channel_users(m), slack.conversations, self) for m in all_channels if m.get("is_channel") and not m.get("is_private")]
+        raw_channels = self.safe_api(lambda: self.api.conversations.list(
+            types="public_channel"), "channels", [], ['channels:read'], 'conversations.list (public_channel)')
+        self.channels = [SlackChannel(m, _get_channel_users(m), SlackChannelType.PUBLIC, self.api.conversations, self)
+                         for m in raw_channels if m.get("is_channel") and not m.get("is_private")]
         self.log.debug("collected channels %s", self.channels)
 
-        self.groups = [SlackChannel(m, _get_channel_users(m), slack.conversations, self) for m in all_channels if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")]
+        raw_groups = self.safe_api(lambda: self.api.conversations.list(
+            types="private_channel"), "channels", [], ['groups:read'], 'conversations.list (private_channel)')
+        self.groups = [SlackChannel(m, _get_channel_users(m), SlackChannelType.PRIVATE, self.api.conversations, self) for m in raw_groups if (
+            m.get("is_channel") or m.get("is_group")) and m.get("is_private")]
         self.log.debug("collected groups %s", self.groups)
 
-        self.mpim = [SlackChannel(m, _get_channel_users(m), slack.conversations, self) for m in all_channels if m.get("is_mpim")]
+        raw_mpim = self.safe_api(lambda: self.api.conversations.list(
+            types="mpim"), "channels", [], ['mpim:read'], 'conversations.list (mpim)')
+        self.mpim = [SlackChannel(m, _get_channel_users(
+            m), SlackChannelType.MPIM, self.api.conversations, self) for m in raw_mpim if m.get("is_mpim")]
         self.log.debug("collected mpim %s", self.mpim)
 
-        self.ims = [SlackDirectMessage(m, self.resolve_user(m["user"]), slack.conversations, self) for m in all_channels if m.get("is_im")]
+        raw_ims = self.safe_api(lambda: self.api.conversations.list(
+            types="im"), "channels", [], ['im:read'], 'conversations.list(im)')
+        self.ims = [SlackDirectMessage(m, self.resolve_user(
+            m["user"]), self.api.conversations, self) for m in raw_ims if m.get("is_im")]
         self.log.debug("collected ims %s", self.ims)
 
         # all different types with a similar interface
@@ -828,6 +854,39 @@ class SlackCleaner:
         # pylint: disable=invalid-name
         self.c = ByKeyLookup[Union[SlackChannel, SlackDirectMessage]](self.conversations, lambda v: [v.name, v.id])
         # pylint: enable=invalid-name
+
+
+    def safe_api(self, fun: Callable, attr: Union[str, Sequence[str]], default_value=None, scopes: Optional[List[str]] = None, method: Optional[str] = None) -> Any:
+        """
+        wrapper for handling common errors
+
+        :param fun: function to call
+        :type user_id: Callable
+        :param attr: attribute name in the body to return
+        :type attr: str
+        :param default_value: default value in case of an error
+        :param method: method hint name
+        :type method: str
+        :param scopes: list of scopes hint
+        :type scopes: List[str]
+        """
+        scopes = scopes or []
+        method = method or str(fun)
+        try:
+            res = fun()
+            res = res.body
+            if not res["ok"]:
+                self.log.warning('%s: unknown occurred %s', method, res)
+                return default_value
+            if isinstance(attr, (list, tuple)):
+                return tuple([res.get(a) for a in attr])
+            return res.get(attr, default_value)
+        except Error as error:
+            if str(error) == 'missing_scope' and scopes:
+                self.log.warning('%s: missing scope error: %s is missing', method, f'one of {scopes}' if len(scopes) != 1 else scopes[0])
+            else:
+                self.log.warning('%s: unknown error occurred %s', method, error)
+            return default_value
 
     @property
     def sleep_for(self) -> float:
@@ -904,21 +963,6 @@ class SlackCleaner:
         for channel in channels:
             for msg in channel.msgs(after=after, before=before, with_replies=with_replies):
                 yield msg
-
-
-def _safe_list(res: Any, attr: str) -> List[Any]:
-    res = res.body
-    if not res["ok"] or attr not in res:
-        return []
-    return res[attr]
-
-
-def _safe_attr(res: Any, attr: str) -> Dict[str, Any]:
-    res = res.body
-    if not res["ok"] or attr not in res:
-        return dict()
-    return res[attr]
-
 
 def _find_user(slack: SlackCleaner, msg: Dict[str, Any]) -> Optional[SlackUser]:
     if "user" not in msg:
