@@ -404,7 +404,7 @@ class SlackMessage:
         self.pinned_to = entry.get("pinned_to", False)
         self.has_replies = entry.get("reply_count", 0) > 0
         self.thread_ts = float(entry.get("thread_ts", entry["ts"]))
-        self.files = [SlackFile(f, user if user else slack.resolve_user(f["user"]), slack) for f in entry.get("files", [])]
+        self.files = [SlackFile(f, user if user else slack.resolve_user(f["user"]), slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
         self.is_tombstone = entry.get("subtype", None) == "tombstone"
 
     def delete(self, as_user=True, files=False, replies=False) -> Optional[Exception]:
