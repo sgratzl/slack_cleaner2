@@ -28,7 +28,7 @@ class SlackLoggerLayer:
     def __str__(self):
         return "{n}: deleted: {d}, errors: {e}".format(n=self.name, d=self.deleted, e=self.errors)
 
-    def __call__(self, error = False):
+    def __call__(self, error=False):
         if error:
             self.errors += 1
         else:

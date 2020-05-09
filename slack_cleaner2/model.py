@@ -7,11 +7,11 @@ import time
 from os import path
 from enum import Enum
 from logging import Logger
+from time import sleep
 import requests
 from requests import Response
 from requests.sessions import Session
 from slacker import Slacker, Error
-from time import sleep
 
 from .logger import SlackLogger
 

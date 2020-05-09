@@ -130,7 +130,8 @@ disable=print-statement,
         dict-keys-not-iterating,
         dict-values-not-iterating,
         bad-continuation,
-        broad-except
+        broad-except,
+        too-many-locals
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
