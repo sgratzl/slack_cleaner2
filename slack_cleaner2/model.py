@@ -10,6 +10,7 @@ import requests
 from requests import Response
 from requests.sessions import Session
 from slacker import Slacker, Error
+from time import sleep
 
 from .logger import SlackLogger
 
@@ -424,7 +425,7 @@ class SlackMessage:
             # No response is a good response
             if not self.is_tombstone:
                 self.api.delete(self._channel.id, self.json["ts"], as_user=as_user)
-                self._slack.log.deleted(self)
+                self._slack.post_delete(self)
             else:
                 self._slack.log.debug("Cannot delete tombstone message - but its replies and files")
 
@@ -440,7 +441,7 @@ class SlackMessage:
                         return error
             return None
         except Exception as error:
-            self._slack.log.deleted(self, error, 'chat:write')
+            self._slack.post_delete(self, error, 'chat:write')
             return error
 
     def replies(self) -> Iterator["SlackMessage"]:
@@ -598,10 +599,10 @@ class SlackFile:
         try:
             # No response is a good response so no error
             self.api.delete(self.id)
-            self._slack.log.deleted(self)
+            self._slack.post_delete(self)
             return None
         except Exception as error:
-            self._slack.log.deleted(self, error, 'files:write')
+            self._slack.post_delete(self, error, 'files:write')
             return error
 
     def download_response(self, **kwargs) -> Response:
@@ -736,13 +737,13 @@ class ByKeyLookup(Generic[ByKey]):
 
 class SlackCleaner:
     """
-  base class for cleaning up slack providing access to channels and users
-  """
+    base class for cleaning up slack providing access to channels and users
+    """
 
     log: SlackLogger
     """
-  SlackLogger instance for easy logging
-  """
+    SlackLogger instance for easy logging
+    """
     api: Slacker
     """
     underlying slacker instance
@@ -779,6 +780,10 @@ class SlackCleaner:
     """
     alias of .conversations with advanced accessors
     """
+    sleep_for: float
+    """
+    sleep for the given seconds after a file/message was deleted
+    """
 
     def __init__(self, token: str, sleep_for=0, log_to_file=False, slacker: Optional[Slacker] = None, session=None):
         """
@@ -794,7 +799,8 @@ class SlackCleaner:
         :type session: Session
         """
 
-        self.log = SlackLogger(log_to_file, sleep_for)
+        self.log = SlackLogger(log_to_file)
+        self.sleep_for = sleep_for
         self.token = token
 
         self.log.debug("start")
@@ -888,18 +894,6 @@ class SlackCleaner:
                 self.log.error('%s: unknown error occurred: %s', method, error)
             return default_value
 
-    @property
-    def sleep_for(self) -> float:
-        """
-        get the sleep_for attribute
-        :rtype: float
-        """
-        return self.log.sleep_for
-
-    @sleep_for.setter
-    def sleep_for(self, value: float):
-        self.log.sleep_for = value
-
     def resolve_user(self, user_id: str) -> SlackUser:
         """
         resolve a given user_id with creating a dummy user if needed
@@ -921,6 +915,23 @@ class SlackCleaner:
 
     def _resolve_users(self, ids: List[str]) -> List[SlackUser]:
         return [self.resolve_user(user_id) for user_id in ids]
+
+    def post_delete(self, file_or_msg: Union[SlackMessage, SlackFile], error: Optional[Exception] = None, scope: Optional[str] = None):
+        """
+        log a deleted file or message with optional error
+        """
+        self.log.deleted(error)
+
+        if error:
+            if str(error) == 'missing_scope' and scope:
+                self.log.warning("cannot delete entry: %s: missing '%s' scope", file_or_msg, scope)
+            else:
+                self.log.warning("cannot delete entry: %s: %s", file_or_msg, error)
+        else:
+            self.log.debug("deleted entry: %s", file_or_msg)
+
+        if self.sleep_for > 0:
+            sleep(self.sleep_for)
 
     def files(
         self, user: Union[str, SlackUser, None] = None, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None, channel: Union[str, SlackChannel, None] = None

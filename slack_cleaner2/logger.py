@@ -6,8 +6,7 @@ from datetime import datetime
 import logging
 import pprint
 import sys
-from time import sleep
-from typing import Optional, Union, Any
+from typing import Union, Optional
 
 from colorama import Fore, init
 
@@ -18,8 +17,8 @@ init()
 
 class SlackLoggerLayer:
     """
-   one stack element to group delete operations
-  """
+    one stack element to group delete operations
+    """
 
     def __init__(self, name: str, parent: Union["SlackLogger", "SlackLoggerLayer"]):
         self.deleted = 0
@@ -30,7 +29,7 @@ class SlackLoggerLayer:
     def __str__(self):
         return "{n}: deleted: {d}, errors: {e}".format(n=self.name, d=self.deleted, e=self.errors)
 
-    def __call__(self, error):
+    def __call__(self, error = False):
         if error:
             self.errors += 1
         else:
@@ -46,11 +45,12 @@ class SlackLoggerLayer:
 
 class SlackLogger:
     """
-  helper logging class
-  """
+    helper logging class
+    """
 
-    def __init__(self, to_file=False, sleep_for: float = 0):
+    def __init__(self, to_file=False, sleep_for: float = 0, show_progress = True):
         self.sleep_for = sleep_for
+        self.show_progress = show_progress
         self._log = logging.getLogger("slack-cleaner")
         for handler in list(self._log.handlers):
             self._log.removeHandler(handler)
@@ -76,32 +76,27 @@ class SlackLogger:
         self.critical = self._log.critical
         self.log = self._log.log
 
-    def deleted(self, file_or_msg: Any, error: Optional[Exception] = None, scope: Optional[str] = None):
+    def deleted(self, error: Optional[Exception] = None):
         """
-    log a deleted file or message with optional error
-    """
+        log a deleted file or message with optional error
+        """
         for layer in self._layers:
             layer(error)
 
+        if not self.show_progress:
+            return
+
         if error:
             sys.stdout.write(Fore.RED + "x" + Fore.RESET)
-            sys.stdout.flush()
-            if str(error) == 'missing_scope' and scope:
-                self.warning("cannot delete entry: %s: missing '%s' scope", file_or_msg, scope)
-            else:
-                self.warning("cannot delete entry: %s: %s", file_or_msg, error)
         else:
             sys.stdout.write(".")
-            sys.stdout.flush()
-            self.debug("deleted entry: %s", file_or_msg)
+        sys.stdout.flush()
 
-        if self.sleep_for > 0:
-            sleep(self.sleep_for)
 
     def group(self, name: str) -> SlackLoggerLayer:
         """
-    push another log group
-    """
+        push another log group
+        """
         layer = SlackLoggerLayer(name, self)
         self.info("start deleting: %s", name)
         self._layers.append(layer)
@@ -109,8 +104,8 @@ class SlackLogger:
 
     def pop(self) -> SlackLoggerLayer:
         """
-    pops last log group
-    """
+        pops last log group
+        """
         layer = self._layers[-1]
         del self._layers[-1]
         self.info("stop deleting: %s", layer)
@@ -121,6 +116,6 @@ class SlackLogger:
 
     def summary(self):
         """
-    logs ones summary
-    """
+        logs ones summary
+        """
         self.info("summary %s", self)
