@@ -6,6 +6,7 @@ from typing import Any, Callable, cast, Dict, Generic, Iterator, Iterable, List,
 import time
 from os import path
 from enum import Enum
+from logging import Logger
 import requests
 from requests import Response
 from requests.sessions import Session
@@ -441,7 +442,7 @@ class SlackMessage:
                         return error
             return None
         except Exception as error:
-            self._slack.post_delete(self, error, 'chat:write')
+            self._slack.post_delete(self, error)
             return error
 
     def replies(self) -> Iterator["SlackMessage"]:
@@ -602,7 +603,7 @@ class SlackFile:
             self._slack.post_delete(self)
             return None
         except Exception as error:
-            self._slack.post_delete(self, error, 'files:write')
+            self._slack.post_delete(self, error)
             return error
 
     def download_response(self, **kwargs) -> Response:
@@ -785,7 +786,7 @@ class SlackCleaner:
     sleep for the given seconds after a file/message was deleted
     """
 
-    def __init__(self, token: str, sleep_for=0, log_to_file=False, slacker: Optional[Slacker] = None, session=None):
+    def __init__(self, token: str, sleep_for=0, log_to_file=False, slacker: Optional[Slacker] = None, session=None, logger: Optional[Logger] = None, show_progress=True):
         """
         :param token: the slack token, see README.md for details
         :type token: str
@@ -797,9 +798,13 @@ class SlackCleaner:
         :type slacker: Slacker
         :param session: optional session instance for better customization
         :type session: Session
+        :param logger: optional Logger instance to use for logging
+        :type logger: Logger
+        :param show_progress: show a progress upon deleting an element on the console
+        :type show_progress: bool
         """
 
-        self.log = SlackLogger(log_to_file)
+        self.log = SlackLogger(log_to_file, logger=logger, show_progress=show_progress)
         self.sleep_for = sleep_for
         self.token = token
 
@@ -916,15 +921,15 @@ class SlackCleaner:
     def _resolve_users(self, ids: List[str]) -> List[SlackUser]:
         return [self.resolve_user(user_id) for user_id in ids]
 
-    def post_delete(self, file_or_msg: Union[SlackMessage, SlackFile], error: Optional[Exception] = None, scope: Optional[str] = None):
+    def post_delete(self, file_or_msg: Union[SlackMessage, SlackFile], error: Optional[Exception] = None):
         """
         log a deleted file or message with optional error
         """
         self.log.deleted(error)
 
         if error:
-            if str(error) == 'missing_scope' and scope:
-                self.log.warning("cannot delete entry: %s: missing '%s' scope", file_or_msg, scope)
+            if str(error) == 'missing_scope':
+                self.log.warning("cannot delete entry: %s: missing '%s' scope", file_or_msg, 'chat:write' if isinstance(file_or_msg, SlackMessage) else 'files:write')
             else:
                 self.log.warning("cannot delete entry: %s: %s", file_or_msg, error)
         else:

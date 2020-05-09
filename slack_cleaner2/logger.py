@@ -4,7 +4,6 @@
 """
 from datetime import datetime
 import logging
-import pprint
 import sys
 from typing import Union, Optional
 
@@ -43,31 +42,35 @@ class SlackLoggerLayer:
         return self._parent
 
 
+def _create_default_logger(to_file=False):
+    log = logging.getLogger("slack-cleaner")
+    for handler in list(log.handlers):
+        log.removeHandler(handler)
+    if to_file:
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        file_log_handler = logging.FileHandler(
+            "slack-cleaner." + ts + ".log")
+        file_log_handler.setLevel(logging.DEBUG)
+        log.addHandler(file_log_handler)
+
+    log.setLevel(logging.DEBUG)
+    # And always display on console
+    out = logging.StreamHandler()
+    out.setLevel(logging.INFO)
+    log.addHandler(out)
+    return log
+
+
 class SlackLogger:
     """
     helper logging class
     """
 
-    def __init__(self, to_file=False, sleep_for: float = 0, show_progress = True):
-        self.sleep_for = sleep_for
+    def __init__(self, to_file=False, logger: Optional[logging.Logger] = None, show_progress=True):
         self.show_progress = show_progress
-        self._log = logging.getLogger("slack-cleaner")
-        for handler in list(self._log.handlers):
-            self._log.removeHandler(handler)
-        self._pp = pprint.PrettyPrinter(indent=2)
         self._layers = [SlackLoggerLayer("overall", self)]
+        self._log = logger if logger else _create_default_logger(to_file)
 
-        if to_file:
-            ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-            file_log_handler = logging.FileHandler("slack-cleaner." + ts + ".log")
-            file_log_handler.setLevel(logging.DEBUG)
-            self._log.addHandler(file_log_handler)
-
-        self._log.setLevel(logging.DEBUG)
-        # And always display on console
-        out = logging.StreamHandler()
-        out.setLevel(logging.INFO)
-        self._log.addHandler(out)
         # wrap regular log methods
         self.debug = self._log.debug
         self.info = self._log.info
