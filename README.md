@@ -118,6 +118,30 @@ Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role
 
 ![user token scopes](https://user-images.githubusercontent.com/4129778/81291893-f20b9580-906a-11ea-80a8-f19f3e6878e9.png)
 
+## Docker
+
+There is no direct docker file available, however since it is a python module one can easily create one: 
+
+```
+FROM python:3.7-alpine
+
+LABEL maintainer="Samuel Gratzl <sam@sgratzl.com>"
+
+VOLUME "/backup"
+WORKDIR /backup
+
+RUN pip --no-cache-dir install slack-cleaner2
+
+CMD ["python", "-"]
+```
+
+An Docker image named `slack_cleaner2` with this Dockerfile would be used like
+
+```sh
+cat myscript.py | docker run -i slack_cleaner2
+```
+
+The `myscript.py` file is a python script using the slack_cleaner2 module.
 
 ## Credits
 
