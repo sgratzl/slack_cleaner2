@@ -48,8 +48,7 @@ def _create_default_logger(to_file=False):
         log.removeHandler(handler)
     if to_file:
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        file_log_handler = logging.FileHandler(
-            "slack-cleaner." + ts + ".log")
+        file_log_handler = logging.FileHandler("slack-cleaner." + ts + ".log")
         file_log_handler.setLevel(logging.DEBUG)
         log.addHandler(file_log_handler)
 
@@ -94,7 +93,6 @@ class SlackLogger:
         else:
             sys.stdout.write(".")
         sys.stdout.flush()
-
 
     def group(self, name: str) -> SlackLoggerLayer:
         """
