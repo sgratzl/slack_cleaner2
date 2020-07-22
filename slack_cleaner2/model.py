@@ -812,8 +812,14 @@ class SlackCleaner:
             self.myself = myself
 
         def _get_channel_users(channel: JSONDict):
-            raw_members = self.safe_paginated_api(lambda kw: self.api.conversations.members(channel["id"], **kw), "members")
-            return self._resolve_users(raw_members)
+            try:
+                raw_members = self.safe_paginated_api(lambda kw: self.api.conversations.members(channel["id"], **kw), "members")
+                return self._resolve_users(raw_members)
+            except Error as error:
+                if str(error) == "fetch_members_failed":
+                    self.log.warning("failed to fetch members of channel %s due to a 'fetch_members_failed' error", channel.get("name", channel["id"]))
+                    return []
+                raise error
 
         raw_channels = self.safe_paginated_api(lambda kw: self.api.conversations.list(types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
         self.channels = [SlackChannel(m, _get_channel_users(m), SlackChannelType.PUBLIC, self.api.conversations, self) for m in raw_channels if m.get("is_channel") and not m.get("is_private")]
