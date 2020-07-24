@@ -42,6 +42,8 @@ for msg in s.c.general.msgs(with_replies=True):
   msg.delete()
 ```
 
+[Migration Guides form slack-cleaner](https://github.com/sgratzl/slack-cleaner/issues/79) contains a series of common pattern in slack cleaner and their counterpart in Slack Cleaner2
+
 
 ## Token
 
