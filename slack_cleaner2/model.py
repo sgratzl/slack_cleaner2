@@ -554,7 +554,9 @@ class SlackFile:
         api = slack.api.files
         slack.log.debug("list all files(user=%s, after=%s, before=%s, types=%s, channel=%s", user, after, before, types, channel)
 
-        files = slack.safe_paginated_api(lambda kw: api.get('files.list', params=dict(user=user, ts_from=after, ts_to=before, types=types, channel=channel, **kw)), "files", ["files:read"], "files.list")
+        def fetch(kwargs):
+            return api.get('files.list', params=dict(user=user, ts_from=after, ts_to=before, types=types, channel=channel, **kwargs))
+        files = slack.safe_paginated_api(fetch, "files", ["files:read"], "files.list")
 
         for sfile in files:
             yield SlackFile(sfile, slack.resolve_user(sfile["user"]), slack)
