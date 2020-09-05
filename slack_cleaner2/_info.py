@@ -4,4 +4,4 @@
 __author__ = """Samuel Gratzl"""
 __email__ = "sam@sgratzl.com"
 __license__ = "MIT License"
-__version__ = "2.4.2"
+__version__ = "2.4.3"
