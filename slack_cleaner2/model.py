@@ -307,7 +307,7 @@ class SlackDirectMessage(SlackChannel):
     :type slack: SlackCleaner
     """
 
-        super(SlackDirectMessage, self).__init__(entry, [user], SlackChannelType.IM, api, slack)
+        super().__init__(entry, [user], SlackChannelType.IM, api, slack)
         self.name = user.name
         self.user = user
 
