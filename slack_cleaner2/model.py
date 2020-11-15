@@ -401,8 +401,7 @@ class SlackMessage:
                         f"Rate limited. Retrying in {delay} seconds")
                     sleep(delay)
                     continue
-                else:
-                    raise error
+                raise error
 
     def delete(self, as_user=True, files=False, replies=False) -> Optional[Exception]:
         """
@@ -585,8 +584,7 @@ class SlackFile:
                         f"Rate limited. Retrying in {delay} seconds")
                     sleep(delay)
                     continue
-                else:
-                    raise error
+                raise error
 
     def delete(self) -> Optional[Exception]:
         """
