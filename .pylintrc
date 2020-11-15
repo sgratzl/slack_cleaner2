@@ -132,6 +132,7 @@ disable=print-statement,
         bad-continuation,
         broad-except,
         too-many-locals
+        too-many-lines
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

@@ -10,8 +10,8 @@ from logging import Logger
 from time import sleep
 import requests
 from requests import Response
-from requests.sessions import Session
-from slacker import Slacker, Error
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 from .logger import SlackLogger
 
@@ -158,11 +158,6 @@ class SlackChannel:
   list of members
   """
 
-    api: Any
-    """
-  Slacker sub api
-  """
-
     json: JSONDict
     """
   the underlying slack response as json
@@ -173,7 +168,7 @@ class SlackChannel:
   the channel type
   """
 
-    def __init__(self, entry: JSONDict, members: List[SlackUser], channel_type: SlackChannelType, api: Any, slack: "SlackCleaner"):
+    def __init__(self, entry: JSONDict, members: List[SlackUser], channel_type: SlackChannelType, slack: "SlackCleaner"):
         """
     :param entry: json dict entry as returned by slack api
     :type entry: dict
@@ -181,7 +176,6 @@ class SlackChannel:
     :type members: [SlackUser]
     :param channel_type: the channel type
     :type channel_type: SlackChannelType
-    :param api: Slacker sub api
     :param slack: slack cleaner instance
     :type slack: SlackCleaner
     """
@@ -190,7 +184,6 @@ class SlackChannel:
         self.name = entry.get("name", self.id)
         self.members = members
         self.type = channel_type
-        self.api = api
         self._slack = slack
         self.json = entry
 
@@ -226,9 +219,11 @@ class SlackChannel:
         """
         after = _parse_time(after)
         before = _parse_time(before)
-        self._slack.log.debug("list msgs of %s (after=%s, before=%s)", self, after, before)
+        self._slack.log.debug(
+            "list msgs of %s (after=%s, before=%s)", self, after, before)
 
-        messages = self._slack.safe_paginated_api(lambda kw: self.api.history(self.id, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.history")
+        messages = self._slack.safe_paginated_api(lambda kw: self._slack.client.conversations_history(
+            channel=self.id, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.history")
 
         for msg in reversed(list(messages)) if asc else messages:
             # Delete user messages
@@ -258,9 +253,11 @@ class SlackChannel:
         ts = base_msg.json.get("thread_ts", base_msg.json["ts"])
         after = _parse_time(after)
         before = _parse_time(before)
-        self._slack.log.debug("list msgs of %s (after=%s, before=%s)", self, after, before)
+        self._slack.log.debug(
+            "list msgs of %s (after=%s, before=%s)", self, after, before)
 
-        messages = self._slack.safe_paginated_api(lambda kw: self.api.replies(self.id, ts, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.replies")
+        messages = self._slack.safe_paginated_api(lambda kw: self._slack.client.conversations_replies(
+            channel=self.id, ts=ts, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.replies")
 
         for msg in reversed(list(messages)) if asc else messages:
             # Delete user messages
@@ -296,7 +293,7 @@ class SlackDirectMessage(SlackChannel):
   user talking to
   """
 
-    def __init__(self, entry: JSONDict, user: SlackUser, api: Any, slack: "SlackCleaner"):
+    def __init__(self, entry: JSONDict, user: SlackUser, slack: "SlackCleaner"):
         """
     :param entry: json dict entry as returned by slack api
     :type entry: dict
@@ -307,7 +304,7 @@ class SlackDirectMessage(SlackChannel):
     :type slack: SlackCleaner
     """
 
-        super().__init__(entry, [user], SlackChannelType.IM, api, slack)
+        super().__init__(entry, [user], SlackChannelType.IM, slack)
         self.name = user.name
         self.user = user
 
@@ -329,11 +326,6 @@ class SlackMessage:
     text: str
     """
   message text
-  """
-
-    api: Any
-    """
-  slacker sub api
   """
 
     user: Optional[SlackUser]
@@ -385,15 +377,32 @@ class SlackMessage:
         self.text = entry["text"]
         self._channel = channel
         self._slack = slack
-        self.api = slack.api.chat
         self.json = entry
         self.user = user
         self.bot = entry.get("subtype") == "bot_message" or "bot_id" in entry
         self.pinned_to = entry.get("pinned_to", False)
         self.has_replies = entry.get("reply_count", 0) > 0
         self.thread_ts = float(entry.get("thread_ts", entry["ts"]))
-        self.files = [SlackFile(f, user if user else slack.resolve_user(f["user"]), slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
+        self.files = [SlackFile(f, user if user else slack.resolve_user(
+            f["user"]), slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
         self.is_tombstone = entry.get("subtype", None) == "tombstone"
+
+    def _delete_rated(self, as_user=True):
+        # Do until being rate limited
+        while True:
+            try:
+                return self._slack.client.chat_delete(channel=self._channel.id,
+                                                      ts=self.json["ts"], as_user=as_user)
+            except SlackApiError as error:
+                if error.response["error"] == "ratelimited":
+                    # The `Retry-After` header will tell you how long to wait before retrying
+                    delay = int(error.response.headers["Retry-After"])
+                    self._slack.log.debug(
+                        f"Rate limited. Retrying in {delay} seconds")
+                    sleep(delay)
+                    continue
+                else:
+                    raise error
 
     def delete(self, as_user=True, files=False, replies=False) -> Optional[Exception]:
         """
@@ -411,14 +420,15 @@ class SlackMessage:
         try:
             # No response is a good response
             if not self.is_tombstone:
-                self.api.delete(self._channel.id, self.json["ts"], as_user=as_user)
+                self._delete_rated(as_user)
                 self._slack.post_delete(self)
             else:
-                self._slack.log.debug("Cannot delete tombstone message - but its replies and files")
+                self._slack.log.debug(
+                    "Cannot delete tombstone message - but its replies and files")
 
             if files and self.files:
-                for sfile in self.files:
-                    error = sfile.delete()
+                for slack_file in self.files:
+                    error = slack_file.delete()
                     if error:
                         return error
             if replies and self.has_replies:
@@ -427,7 +437,7 @@ class SlackMessage:
                     if error:
                         return error
             return None
-        except Exception as error:
+        except SlackApiError as error:
             self._slack.post_delete(self, error)
             return error
 
@@ -465,11 +475,6 @@ class SlackFile:
     title: str
     """
   file title
-  """
-
-    api: Any
-    """
-  slacker sub api
   """
 
     user: SlackUser
@@ -521,7 +526,6 @@ class SlackFile:
 
         self.json = entry
         self._slack = slack
-        self.api = slack.api.files
 
     @staticmethod
     def list(
@@ -551,21 +555,38 @@ class SlackFile:
         if isinstance(channel, SlackChannel):
             channel = channel.id
 
-        api = slack.api.files
-        slack.log.debug("list all files(user=%s, after=%s, before=%s, types=%s, channel=%s", user, after, before, types, channel)
+        slack.log.debug("list all files(user=%s, after=%s, before=%s, types=%s, channel=%s",
+                        user, after, before, types, channel)
 
         def fetch(kwargs):
-            return api.get('files.list', params=dict(user=user, ts_from=after, ts_to=before, types=types, channel=channel, **kwargs))
-        files = slack.safe_paginated_api(fetch, "files", ["files:read"], "files.list")
+            return slack.client.files_list(user=user, ts_from=after, ts_to=before, types=types, channel=channel, **kwargs)
+        files = slack.safe_paginated_api(
+            fetch, "files", ["files:read"], "files.list")
 
-        for sfile in files:
-            yield SlackFile(sfile, slack.resolve_user(sfile["user"]), slack)
+        for slack_file in files:
+            yield SlackFile(slack_file, slack.resolve_user(slack_file["user"]), slack)
 
     def __str__(self) -> str:
         return self.name
 
     def __repr__(self):
         return self.__str__()
+
+    def _delete_rated(self):
+        # Do until being rate limited
+        while True:
+            try:
+                return self._slack.client.files_delete(file=self.id)
+            except SlackApiError as error:
+                if error.response["error"] == "ratelimited":
+                    # The `Retry-After` header will tell you how long to wait before retrying
+                    delay = int(error.response.headers["Retry-After"])
+                    self._slack.log.debug(
+                        f"Rate limited. Retrying in {delay} seconds")
+                    sleep(delay)
+                    continue
+                else:
+                    raise error
 
     def delete(self) -> Optional[Exception]:
         """
@@ -576,10 +597,10 @@ class SlackFile:
     """
         try:
             # No response is a good response so no error
-            self.api.delete(self.id)
+            self._delete_rated()
             self._slack.post_delete(self)
             return None
-        except Exception as error:
+        except SlackApiError as error:
             self._slack.post_delete(self, error)
             return error
 
@@ -722,9 +743,9 @@ class SlackCleaner:
     """
     SlackLogger instance for easy logging
     """
-    api: Slacker
+    client: WebClient
     """
-    underlying slacker instance
+    underlying WebClient instance
     """
     users: ByKeyLookup[SlackUser]
     """
@@ -767,7 +788,7 @@ class SlackCleaner:
     number of elements fetched per page
     """
 
-    def __init__(self, token: str, sleep_for=0, log_to_file=False, slacker: Optional[Slacker] = None, session=None, logger: Optional[Logger] = None, show_progress=True, page_limit=200):
+    def __init__(self, token: str, sleep_for=0, log_to_file=False, client: Optional[WebClient] = None, logger: Optional[Logger] = None, show_progress=True, page_limit=200):
         """
         :param token: the slack token, see README.md for details
         :type token: str
@@ -775,8 +796,8 @@ class SlackCleaner:
         :type sleep_for: float
         :param log_to_file: enable logging to file
         :type log_to_file: bool
-        :param slacker: optional slacker instance for better customization
-        :type slacker: Slacker
+        :param client: optional client instance for better customization
+        :type client: WebClient
         :param session: optional session instance for better customization
         :type session: Session
         :param logger: optional Logger instance to use for logging
@@ -787,58 +808,72 @@ class SlackCleaner:
         :type page_limit: int
         """
 
-        self.log = SlackLogger(log_to_file, logger=logger, show_progress=show_progress)
+        self.log = SlackLogger(log_to_file, logger=logger,
+                               show_progress=show_progress)
         self.sleep_for = sleep_for
         self.token = token
         self.page_limit = page_limit
 
         self.log.debug("start")
 
-        if slacker:
-            self.api = slacker
+        if client:
+            self.client = client
         else:
-            slack = Slacker(token, session=session if session else Session(), rate_limit_retries=2)
-            self.api = slack
+            client = WebClient(token=token, )
+            self.client = client
 
-        raw_users = self.safe_api(self.api.users.list, "members", [], ["users:read (bot, user)"], "users.list")
-        self.users = ByKeyLookup[SlackUser]([SlackUser(m, self) for m in raw_users], lambda v: [v.name, v.id])
+        raw_users = self.safe_api(self.client.users_list, "members", [], [
+                                  "users:read (bot, user)"], "users.list")
+        self.users = ByKeyLookup[SlackUser](
+            [SlackUser(m, self) for m in raw_users], lambda v: [v.name, v.id])
         self.log.debug("collected users %s", self.users)
 
         # determine one self
-        my_id = self.safe_api(self.api.auth.test, "user_id", None, [], "auth.test")
+        my_id = self.safe_api(self.client.auth_test,
+                              "user_id", None, [], "auth.test")
         myself = next((u for u in self.users if u.id == my_id), None)
         if not myself:
-            self.log.error("cannot determine my own user, using the first one or a dummy one")
+            self.log.error(
+                "cannot determine my own user, using the first one or a dummy one")
             self.myself = self.users[0] or self._add_dummy_user("?????")
         else:
             self.myself = myself
 
         def _get_channel_users(channel: JSONDict):
             try:
-                raw_members = self.safe_paginated_api(lambda kw: self.api.conversations.members(channel["id"], **kw), "members")
+                raw_members = self.safe_paginated_api(
+                    lambda kw: self.client.conversations_members(channel=channel["id"], **kw), "members")
                 return self._resolve_users(raw_members)
-            except Error as error:
-                if str(error) == "fetch_members_failed":
-                    self.log.warning("failed to fetch members of channel %s due to a 'fetch_members_failed' error", channel.get("name", channel["id"]))
+            except SlackApiError as error:
+                if error.response['error'] == "fetch_members_failed":
+                    self.log.warning("failed to fetch members of channel %s due to a 'fetch_members_failed' error", channel.get(
+                        "name", channel["id"]))
                     return []
                 raise error
 
-        raw_channels = self.safe_paginated_api(lambda kw: self.api.conversations.list(types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
-        self.channels = [SlackChannel(m, _get_channel_users(m), SlackChannelType.PUBLIC, self.api.conversations, self) for m in raw_channels if m.get("is_channel") and not m.get("is_private")]
+        raw_channels = self.safe_paginated_api(lambda kw: self.client.conversations_list(
+            types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
+        self.channels = [SlackChannel(m, _get_channel_users(m), SlackChannelType.PUBLIC, self)
+                         for m in raw_channels if m.get("is_channel") and not m.get("is_private")]
         self.log.debug("collected channels %s", self.channels)
 
-        raw_groups = self.safe_paginated_api(lambda kw: self.api.conversations.list(types="private_channel", **kw), "channels", ["groups:read"], "conversations.list (private_channel)")
+        raw_groups = self.safe_paginated_api(lambda kw: self.client.conversations_list(
+            types="private_channel", **kw), "channels", ["groups:read"], "conversations.list (private_channel)")
         self.groups = [
-            SlackChannel(m, _get_channel_users(m), SlackChannelType.PRIVATE, self.api.conversations, self) for m in raw_groups if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")
+            SlackChannel(m, _get_channel_users(m), SlackChannelType.PRIVATE, self) for m in raw_groups if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")
         ]
         self.log.debug("collected groups %s", self.groups)
 
-        raw_mpim = self.safe_paginated_api(lambda kw: self.api.conversations.list(types="mpim", **kw), "channels", ["mpim:read"], "conversations.list (mpim)")
-        self.mpim = [SlackChannel(m, _get_channel_users(m), SlackChannelType.MPIM, self.api.conversations, self) for m in raw_mpim if m.get("is_mpim")]
+        raw_mpim = self.safe_paginated_api(lambda kw: self.client.conversations_list(
+            types="mpim", **kw), "channels", ["mpim:read"], "conversations.list (mpim)")
+        self.mpim = [SlackChannel(m, _get_channel_users(
+            m), SlackChannelType.MPIM, self) for m in raw_mpim if m.get("is_mpim")]
         self.log.debug("collected mpim %s", self.mpim)
 
-        raw_ims = self.safe_paginated_api(lambda kw: self.api.conversations.list(types="im", **kw), "channels", ["im:read"], "conversations.list (im)")
-        self.ims = [SlackDirectMessage(m, self.resolve_user(m["user"]), self.api.conversations, self) for m in raw_ims if m.get("is_im")]
+        raw_ims = self.safe_paginated_api(lambda kw: self.client.conversations_list(
+            types="im", **kw), "channels", ["im:read"], "conversations.list (im)")
+        self.ims = [SlackDirectMessage(m, self.resolve_user(
+            m["user"]), self) for m in raw_ims if m.get("is_im")]
         self.log.debug("collected ims %s", self.ims)
 
         # al different types with a similar interface
@@ -846,7 +881,8 @@ class SlackCleaner:
         self.conversations.extend(self.ims)
 
         # pylint: disable=invalid-name
-        self.c = ByKeyLookup[Union[SlackChannel, SlackDirectMessage]](self.conversations, lambda v: [v.name, v.id])
+        self.c = ByKeyLookup[Union[SlackChannel, SlackDirectMessage]](
+            self.conversations, lambda v: [v.name, v.id])
         # pylint: enable=invalid-name
 
     def safe_api(self, fun: Callable, attr: Union[str, Sequence[str]], default_value=None, scopes: Optional[List[str]] = None, method: Optional[str] = None) -> Any:
@@ -867,16 +903,16 @@ class SlackCleaner:
         method = method or str(fun)
         try:
             res = fun()
-            res = res.body
             if not res["ok"]:
                 self.log.warning("%s: unknown occurred %s", method, res)
                 return default_value
             if isinstance(attr, (list, tuple)):
                 return tuple([res.get(a) for a in attr])
             return res.get(attr, default_value)
-        except Error as error:
-            if str(error) == "missing_scope" and scopes:
-                self.log.warning("%s: missing scope error: %s is missing", method, f"one of '{scopes}'" if len(scopes) != 1 else scopes[0])
+        except SlackApiError as error:
+            if error.response['error'] == "missing_scope" and scopes:
+                self.log.warning("%s: missing scope error: %s is missing", method,
+                                 f"one of '{scopes}'" if len(scopes) != 1 else scopes[0])
             else:
                 self.log.error("%s: unknown error occurred: %s", method, error)
             return default_value
@@ -904,7 +940,8 @@ class SlackCleaner:
             return fun(dict(cursor=next_cursor, limit=limit))
 
         while True:
-            page, meta = self.safe_api(list_page, [attr, "response_metadata"], [[], dict()], scopes, method)
+            page, meta = self.safe_api(list_page, [attr, "response_metadata"], [
+                                       [], dict()], scopes, method)
             for elem in page:
                 yield elem
             if not meta or not meta.get("next_cursor"):
@@ -925,7 +962,8 @@ class SlackCleaner:
         return cast(SlackUser, self.users[user_id])
 
     def _add_dummy_user(self, user_id: str):
-        entry = {"id": user_id, "name": user_id, "profile": {"real_name": user_id, "display_name": user_id, "email": None}, "is_bot": False, "is_app_user": False}
+        entry = {"id": user_id, "name": user_id, "profile": {"real_name": user_id,
+                                                             "display_name": user_id, "email": None}, "is_bot": False, "is_app_user": False}
         user = SlackUser(entry, self)
         self.users.append(user)
         return user
@@ -933,17 +971,19 @@ class SlackCleaner:
     def _resolve_users(self, ids: List[str]) -> List[SlackUser]:
         return [self.resolve_user(user_id) for user_id in ids]
 
-    def post_delete(self, file_or_msg: Union[SlackMessage, SlackFile], error: Optional[Exception] = None):
+    def post_delete(self, file_or_msg: Union[SlackMessage, SlackFile], error: Optional[SlackApiError] = None):
         """
         log a deleted file or message with optional error
         """
         self.log.deleted(error)
 
         if error:
-            if str(error) == "missing_scope":
-                self.log.warning("cannot delete entry: %s: missing '%s' scope", file_or_msg, "chat:write" if isinstance(file_or_msg, SlackMessage) else "files:write")
+            if error.response['error'] == "missing_scope":
+                self.log.warning("cannot delete entry: %s: missing '%s' scope", file_or_msg,
+                                 "chat:write" if isinstance(file_or_msg, SlackMessage) else "files:write")
             else:
-                self.log.warning("cannot delete entry: %s: %s", file_or_msg, error)
+                self.log.warning("cannot delete entry: %s: %s",
+                                 file_or_msg, error.response['error'])
         else:
             self.log.debug("deleted entry: %s", file_or_msg)
 
