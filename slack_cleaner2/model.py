@@ -22,61 +22,61 @@ TimeIsh = Union[None, int, str, float]
 
 class SlackUser:
     """
-  internal model of a slack user
-  """
+    internal model of a slack user
+    """
 
     id: str
     """
-  user id
-  """
+    user id
+    """
 
     name: str
     """
-  user name
-  """
+    user name
+    """
 
     real_name: str
     """
-  user real name
-  """
+    user real name
+    """
 
     display_name: str
     """
-  user display name
-  """
+    user display name
+    """
 
     email: str
     """
-  user email address
-  """
+    user email address
+    """
 
     is_bot = False
     """
-  is it a bot user
-  """
+    is it a bot user
+    """
 
     is_app_user = False
     """
-  is it an app user
-  """
+    is it an app user
+    """
 
     bot = False
     """
-  is it a bot or app user
-  """
+    is it a bot or app user
+    """
 
     json: JSONDict
     """
-  the underlying slack response as json
-  """
+    the underlying slack response as json
+    """
 
     def __init__(self, entry: JSONDict, slack: "SlackCleaner"):
         """
-    :param entry: json dict entry as returned by slack api
-    :type entry: dict
-    :param slack: slack cleaner instance
-    :type slack: SlackCleaner
-    """
+        :param entry: json dict entry as returned by slack api
+        :type entry: dict
+        :param slack: slack cleaner instance
+        :type slack: SlackCleaner
+        """
         self.id = entry["id"]
         self._slack = slack
         self.name = entry["name"]
@@ -96,32 +96,32 @@ class SlackUser:
 
     def files(self, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None) -> Iterator["SlackFile"]:
         """
-    list all files of this user
+        list all files of this user
 
-    :param after: limit to entries after the given timestamp
-    :type after: int,str,time
-    :param before: limit to entries before the given timestamp
-    :type before: int,str,time
-    :param types: see slack api, one or multiple of all,spaces,snippets,images,gdocs,zips,pdfs
-    :type types: str
-    :return: generator of SlackFile objects
-    :rtype: SlackFile
-    """
+        :param after: limit to entries after the given timestamp
+        :type after: int,str,time
+        :param before: limit to entries before the given timestamp
+        :type before: int,str,time
+        :param types: see slack api, one or multiple of all,spaces,snippets,images,gdocs,zips,pdfs
+        :type types: str
+        :return: generator of SlackFile objects
+        :rtype: SlackFile
+        """
         return SlackFile.list(self._slack, user=self.id, after=after, before=before, types=types)
 
     def msgs(self, after: TimeIsh = None, before: TimeIsh = None, with_replies=False) -> Iterator["SlackMessage"]:
         """
-    list all messages of this user
+        list all messages of this user
 
-    :param after: limit to entries after the given timestamp
-    :type after: int,str,time
-    :param before: limit to entries before the given timestamp
-    :type before: int,str,time
-    :type with_replies: boolean
-    :return: generator of SlackMessage objects
-    :return: generator of SlackMessage objects
-    :rtype: SlackMessage
-    """
+        :param after: limit to entries after the given timestamp
+        :type after: int,str,time
+        :param before: limit to entries before the given timestamp
+        :type before: int,str,time
+        :type with_replies: boolean
+        :return: generator of SlackMessage objects
+        :return: generator of SlackMessage objects
+        :rtype: SlackMessage
+        """
         for msg in self._slack.msgs((c for c in self._slack.conversations if self in c.members), after=after, before=before, with_replies=with_replies):
             if msg.user == self:
                 yield msg
@@ -140,45 +140,45 @@ class SlackChannelType(Enum):
 
 class SlackChannel:
     """
-  internal model of a slack channel, group, mpim, im
-  """
+    internal model of a slack channel, group, mpim, im
+    """
 
     id: str
     """
-  channel id
-  """
+    channel id
+    """
 
     name: str
     """
-  channel name
-  """
+    channel name
+    """
 
     members: List[SlackUser] = []
     """
-  list of members
-  """
+    list of members
+    """
 
     json: JSONDict
     """
-  the underlying slack response as json
-  """
+    the underlying slack response as json
+    """
 
     type: SlackChannelType
     """
-  the channel type
-  """
+    the channel type
+    """
 
     def __init__(self, entry: JSONDict, members: List[SlackUser], channel_type: SlackChannelType, slack: "SlackCleaner"):
         """
-    :param entry: json dict entry as returned by slack api
-    :type entry: dict
-    :param members: list of members
-    :type members: [SlackUser]
-    :param channel_type: the channel type
-    :type channel_type: SlackChannelType
-    :param slack: slack cleaner instance
-    :type slack: SlackCleaner
-    """
+        :param entry: json dict entry as returned by slack api
+        :type entry: dict
+        :param members: list of members
+        :type members: [SlackUser]
+        :param channel_type: the channel type
+        :type channel_type: SlackChannelType
+        :param slack: slack cleaner instance
+        :type slack: SlackCleaner
+        """
 
         self.id = entry["id"]
         self.name = entry.get("name", self.id)
@@ -269,40 +269,40 @@ class SlackChannel:
 
     def files(self, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None) -> Iterator["SlackFile"]:
         """
-    list all files of this channel
+        list all files of this channel
 
-    :param after: limit to entries after the given timestamp
-    :type after: int,str,time
-    :param before: limit to entries before the given timestamp
-    :type before: int,str,time
-    :param types: see slack api, one or multiple of all,spaces,snippets,images,gdocs,zips,pdfs
-    :type types: str
-    :return: generator of SlackFile objects
-    :rtype: SlackFile
-    """
+        :param after: limit to entries after the given timestamp
+        :type after: int,str,time
+        :param before: limit to entries before the given timestamp
+        :type before: int,str,time
+        :param types: see slack api, one or multiple of all,spaces,snippets,images,gdocs,zips,pdfs
+        :type types: str
+        :return: generator of SlackFile objects
+        :rtype: SlackFile
+        """
         return SlackFile.list(self._slack, channel=self.id, after=after, before=before, types=types)
 
 
 class SlackDirectMessage(SlackChannel):
     """
-  internal model of a slack direct message channel
-  """
+    internal model of a slack direct message channel
+    """
 
     user: SlackUser
     """
-  user talking to
-  """
+    user talking to
+    """
 
     def __init__(self, entry: JSONDict, user: SlackUser, slack: "SlackCleaner"):
         """
-    :param entry: json dict entry as returned by slack api
-    :type entry: dict
-    :param user: user talking to
-    :type user: SlackUser
-    :param api: Slacker sub api
-    :param slack: slack cleaner instance
-    :type slack: SlackCleaner
-    """
+        :param entry: json dict entry as returned by slack api
+        :type entry: dict
+        :param user: user talking to
+        :type user: SlackUser
+        :param api: Slacker sub api
+        :param slack: slack cleaner instance
+        :type slack: SlackCleaner
+        """
 
         super().__init__(entry, [user], SlackChannelType.IM, slack)
         self.name = user.name
@@ -311,68 +311,68 @@ class SlackDirectMessage(SlackChannel):
 
 class SlackMessage:
     """
-  internal model of a slack message
-  """
+    internal model of a slack message
+    """
 
     ts: float
     """
-  message timestamp
-  """
+    message timestamp
+    """
     thread_ts: Optional[float]
     """
-  message timestamp for its thread
-  """
+    message timestamp for its thread
+    """
 
     text: str
     """
-  message text
-  """
+    message text
+    """
 
     user: Optional[SlackUser]
     """
-  user sending the messsage
-  """
+    user sending the messsage
+    """
 
     bot = False
     """
-  is the message written by a bot
-  """
+    is the message written by a bot
+    """
 
     pinned_to = False
     """
-  is the message pinned
-  """
+    is the message pinned
+    """
 
     json: JSONDict
     """
-  the underlying slack response as json
-  """
+    the underlying slack response as json
+    """
 
     has_replies = False
     """
-  whether the message has any replies
-  """
+    whether the message has any replies
+    """
     files: List["SlackFile"] = []
     """
-  files part of this message
-  """
+    files part of this message
+    """
     is_tombstone = False
     """
-  whether the is a tombstone message as in 'message was deleted'
-  thus cannot be deleted but is thread can
-  """
+    whether the is a tombstone message as in 'message was deleted'
+    thus cannot be deleted but is thread can
+    """
 
     def __init__(self, entry: JSONDict, user: Optional[SlackUser], channel: SlackChannel, slack: "SlackCleaner"):
         """
-    :param entry: json dict entry as returned by slack api
-    :type entry: dict
-    :param user: user wrote this message
-    :type user: SlackUser
-    :param channel: channels this message is written in
-    :type channel: SlackChannel
-    :param slack: slack cleaner instance
-    :type slack: SlackCleaner
-    """
+        :param entry: json dict entry as returned by slack api
+        :type entry: dict
+        :param user: user wrote this message
+        :type user: SlackUser
+        :param channel: channels this message is written in
+        :type channel: SlackChannel
+        :param slack: slack cleaner instance
+        :type slack: SlackCleaner
+        """
         self.ts = float(entry["ts"])
         self.text = entry["text"]
         self._channel = channel
@@ -405,17 +405,17 @@ class SlackMessage:
 
     def delete(self, as_user=True, files=False, replies=False) -> Optional[Exception]:
         """
-    deletes this message
+        deletes this message
 
-    :param as_user: trigger the delete operation as the user identified by the token (default True)
-    :type as_user: bool
-    :param files: delete attached files, too
-    :type files: bool
-    :param replies: delete thread replies, too
-    :type replies: bool
-    :return: None if successful else error
-    :rtype: Exception
-    """
+        :param as_user: trigger the delete operation as the user identified by the token (default True)
+        :type as_user: bool
+        :param files: delete attached files, too
+        :type files: bool
+        :param replies: delete thread replies, too
+        :type replies: bool
+        :return: None if successful else error
+        :rtype: Exception
+        """
         try:
             # No response is a good response
             if not self.is_tombstone:
@@ -442,11 +442,11 @@ class SlackMessage:
 
     def replies(self) -> Iterator["SlackMessage"]:
         """
-    list all replies of this message
+        list all replies of this message
 
-    :return: generator of SlackMessage objects
-    :rtype: SlackMessage
-    """
+        :return: generator of SlackMessage objects
+        :rtype: SlackMessage
+        """
         return self._channel.replies_to(self)
 
     def __str__(self):
@@ -458,70 +458,76 @@ class SlackMessage:
 
 class SlackFile:
     """
-  internal representation of a slack file
-  """
+    internal representation of a slack file
+    """
 
     id: str
     """
-  file id
-  """
+    file id
+    """
+
+    hidden_by_limit: bool
+    """
+    whether file is hidden because of the limit
+    """
 
     name: str
     """
-  file name
-  """
+    file name
+    """
 
     title: str
     """
-  file title
-  """
+    file title
+    """
 
     user: SlackUser
     """
-  user created this file
-  """
+    user created this file
+    """
 
     pinned_to = False
     """
-  is the file pinned
-  """
+    is the file pinned
+    """
 
     mimetype: Optional[str]
     """
-  the file mime type
-  """
+    the file mime type
+    """
 
     size: int
     """
-  the file size
-  """
+    the file size
+    """
 
     is_public = False
     """
-  is the file public
-  """
+    is the file public
+    """
 
     json: JSONDict
     """
-  the underlying slack response as json
-  """
+    the underlying slack response as json
+    """
 
     def __init__(self, entry: JSONDict, user: SlackUser, slack: "SlackCleaner"):
         """
-    :param entry: json dict entry as returned by slack api
-    :type entry: dict
-    :param user: user created this file
-    :param slack: slack cleaner instance
-    :type slack: SlackCleaner
-    """
+        :param entry: json dict entry as returned by slack api
+        :type entry: dict
+        :param user: user created this file
+        :param slack: slack cleaner instance
+        :type slack: SlackCleaner
+        """
         self.id = entry["id"]
-        self.name = entry["name"]
-        self.title = entry["title"]
+        self.hidden_by_limit = "hidden_by_limit" in entry
+        self.name = entry.get("name", "Unknown")
+        self.title = entry.get("title", "Unknown")
         self.user = user
         self.pinned_to = entry.get("pinned_to", False)
         self.mimetype = entry.get("mimetype")
-        self.size = entry["size"]
-        self.is_public = entry["is_public"]
+        self.size = entry.get("size", -1)
+        self.is_public = entry.get("is_public", False)
 
         self.json = entry
         self._slack = slack
@@ -531,21 +537,21 @@ class SlackFile:
         slack: "SlackCleaner", user: Union[str, SlackUser, None] = None, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None, channel: Union[str, SlackChannel, None] = None
     ) -> Iterator["SlackFile"]:
         """
-    list all given files
+        list all given files
 
-    :param user: user id to limit search
-    :type user: str,SlackUser
-    :param after: limit to entries after the given timestamp
-    :type after: int,str,time
-    :param before: limit to entries before the given timestamp
-    :type before: int,str,time
-    :param channel: channel to limit search
-    :type channel: str,SlackChannel
-    :param types: see slack api, one or multiple of all,spaces,snippets,images,gdocs,zips,pdfs
-    :type types: str
-    :return: generator of SlackFile objects
-    :rtype: SlackFile
-    """
+        :param user: user id to limit search
+        :type user: str,SlackUser
+        :param after: limit to entries after the given timestamp
+        :type after: int,str,time
+        :param before: limit to entries before the given timestamp
+        :type before: int,str,time
+        :param channel: channel to limit search
+        :type channel: str,SlackChannel
+        :param types: see slack api, one or multiple of all,spaces,snippets,images,gdocs,zips,pdfs
+        :type types: str
+        :return: generator of SlackFile objects
+        :rtype: SlackFile
+        """
 
         # after = _parse_time(after)
         before = _parse_time(before)
@@ -588,11 +594,11 @@ class SlackFile:
 
     def delete(self) -> Optional[Exception]:
         """
-    delete the file itself
+        delete the file itself
 
-    :return:  None if successful else exception
-    :rtype: Exception
-    """
+        :return:  None if successful else exception
+        :rtype: Exception
+        """
         try:
             # No response is a good response so no error
             self._delete_rated()
@@ -604,61 +610,61 @@ class SlackFile:
 
     def download_response(self, **kwargs) -> Response:
         """
-    downloads this file using python requests module
+        downloads this file using python requests module
 
-    :return: python requests Response object
-    :rtype: Response
-    """
+        :return: python requests Response object
+        :rtype: Response
+        """
         headers = {"Authorization": "Bearer " + self._slack.token}
         return requests.get(self.json["url_private_download"], headers=headers, **kwargs)
 
     def download_json(self) -> JSONDict:
         """
-    downloads this file and returns the JSON content
+        downloads this file and returns the JSON content
 
-    :return: json content
-    :rtype: dict,list
-    """
+        :return: json content
+        :rtype: dict,list
+        """
         res = self.download_response()
         return res.json()
 
     def download_content(self) -> bytes:
         """
-    downloads this file and returns the raw content
+        downloads this file and returns the raw content
 
-    :return: the content
-    :rtype: bytes[]
-    """
+        :return: the content
+        :rtype: bytes[]
+        """
         res = self.download_response()
         return res.content
 
     def download_stream(self, chunk_size=1024) -> Iterator[bytes]:
         """
-    downloads this file and returns a content stream
+        downloads this file and returns a content stream
 
-    :return: bytes[] chunk stream
-    :rtype: *bytes[]
-    """
+        :return: bytes[] chunk stream
+        :rtype: *bytes[]
+        """
         res = self.download_response(stream=True)
         return res.iter_content(chunk_size=chunk_size)
 
     def download_to(self, directory: str = ".") -> str:
         """
-    downloads this file to the given directory
+        downloads this file to the given directory
 
-    :return: the stored file path
-    :rtype: str
-    """
+        :return: the stored file path
+        :rtype: str
+        """
         file_name = path.join(directory, self.name)
         return self.download(file_name)
 
     def download(self, file_name: Optional[str] = None) -> str:
         """
-    downloads this file to the given file name
+        downloads this file to the given file name
 
-    :return: the stored file name
-    :rtype: str
-    """
+        :return: the stored file name
+        :rtype: str
+        """
         with open(file_name or self.name, "wb") as out:
             for chunk in self.download_stream():
                 out.write(chunk)
