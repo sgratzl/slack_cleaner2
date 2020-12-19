@@ -387,6 +387,13 @@ class SlackMessage:
             f["user"]), slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
         self.is_tombstone = entry.get("subtype", None) == "tombstone"
 
+    @property
+    def is_thread_parent(self) -> bool:
+        """
+        flag whether this message is the parent of a thread
+        """
+        return self.thread_ts is not None
+
     def _delete_rated(self, as_user=True):
         # Do until being rate limited
         while True:
