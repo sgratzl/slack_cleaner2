@@ -26,7 +26,7 @@ setup(
     author_email="sam@sgratzl.com",
     url="https://github.com/sgratzl/slack_cleaner2",
     classifiers=[
-        "Development Status :: 2 - Pre-Alpha",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Natural Language :: English",
@@ -40,4 +40,9 @@ setup(
     test_suite="tests",
     tests_require=test_requirements,
     zip_safe=False,
+        entry_points={
+        'console_scripts': [
+            'slack-cleaner2 = slack_cleaner2.cli:main'
+        ]
+    }
 )
