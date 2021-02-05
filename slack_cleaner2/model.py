@@ -187,6 +187,13 @@ class SlackChannel:
         self._slack = slack
         self.json = entry
 
+    @property
+    def is_archived(self) -> bool:
+        """
+        whether this channel is archived
+        """
+        return self.json.get('is_archived', False)
+
     def __str__(self):
         return self.name
 
@@ -386,6 +393,13 @@ class SlackMessage:
         self.files = [SlackFile(f, user if user else slack.resolve_user(
             f["user"]), slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
         self.is_tombstone = entry.get("subtype", None) == "tombstone"
+
+    @property
+    def is_thread_parent(self) -> bool:
+        """
+        flag whether this message is the parent of a thread
+        """
+        return self.thread_ts is not None
 
     def _delete_rated(self, as_user=True):
         # Do until being rate limited
@@ -845,16 +859,12 @@ class SlackCleaner:
             self.myself = myself
 
         def _get_channel_users(channel: JSONDict):
-            try:
-                raw_members = self.safe_paginated_api(
-                    lambda kw: self.client.conversations_members(channel=channel["id"], **kw), "members")
-                return self._resolve_users(raw_members)
-            except SlackApiError as error:
-                if error.response['error'] == "fetch_members_failed":
-                    self.log.warning("failed to fetch members of channel %s due to a 'fetch_members_failed' error", channel.get(
-                        "name", channel["id"]))
-                    return []
-                raise error
+            if channel.get('is_archived'):
+                self.log.debug('cannot fetch members of archived channel %s', channel['name'])
+                return []
+            raw_members = self.safe_paginated_api(
+                lambda kw: self.client.conversations_members(channel=channel["id"], **kw), "members")
+            return self._resolve_users(raw_members)
 
         raw_channels = self.safe_paginated_api(lambda kw: self.client.conversations_list(
             types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
@@ -918,6 +928,8 @@ class SlackCleaner:
             if error.response['error'] == "missing_scope" and scopes:
                 self.log.warning("%s: missing scope error: %s is missing", method,
                                  f"one of '{scopes}'" if len(scopes) != 1 else scopes[0])
+            elif error.response['error'] == "fetch_members_failed":
+                self.log.debug("%s: fetch_members_failed: is it an archived channel?", method)
             else:
                 self.log.error("%s: unknown error occurred: %s", method, error)
             return default_value

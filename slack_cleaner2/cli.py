@@ -15,8 +15,8 @@ PredicateFun = Callable[[Any], bool]
 
 def _show_infos(slack: SlackCleaner):
     """
-  show generic information about this slack workspace
-  """
+    show generic information about this slack workspace
+    """
 
     def _print_dict(cat: str, data: Dict[str, str]):
         msg = "{}{}:{}".format(Fore.GREEN, cat, Fore.RESET)
@@ -29,13 +29,13 @@ def _show_infos(slack: SlackCleaner):
     _print_dict("public channels", {u.id: u.name for u in slack.channels})
     _print_dict("private channels", {u.id: u.name for u in slack.groups})
     _print_dict("instant messages", {u.id: u.name for u in slack.ims})
-    _print_dict("mulit user direct messsages", {u.id: u.name for u in slack.mpim})
+    _print_dict("multi user direct messsages", {u.id: u.name for u in slack.mpim})
 
 
 def _resolve_user(slack: SlackCleaner, args: Any):
     """
-  resolves th user to delete messages of
-  """
+    resolves th user to delete messages of
+    """
     if args.user == "*":
         return None
     return next(filter(match_user(args.user), slack.users))
@@ -43,8 +43,8 @@ def _resolve_user(slack: SlackCleaner, args: Any):
 
 def _channels(slack: SlackCleaner, args: Any):
     """
-  resolves channesls to delete messages from
-  """
+    resolves channels to delete messages from
+    """
     channels: List[SlackChannel] = []
 
     filter_f: Any = match if args.regex else is_name
@@ -63,8 +63,8 @@ def _channels(slack: SlackCleaner, args: Any):
 
 def _delete_messages(slack: SlackCleaner, args: Any):
     """
-  delete old messages
-  """
+    delete old messages
+    """
     channels = _channels(slack, args)
 
     pred: List[PredicateFun] = []
@@ -97,8 +97,8 @@ def _delete_messages(slack: SlackCleaner, args: Any):
 
 def _delete_files(slack: SlackCleaner, args: Any):
     """
-  delete old files
-  """
+    delete old files
+    """
     user = _resolve_user(slack, args)
     channels = _channels(slack, args)
 
@@ -132,8 +132,8 @@ def _delete_files(slack: SlackCleaner, args: Any):
 
 def _args() -> Any:
     """
-  cli argument parser
-  """
+    cli argument parser
+    """
     parser = argparse.ArgumentParser(prog="slack-cleaner")
     # Token
     parser.add_argument("--token", required=True, help="Slack API token (https://api.slack.com/web)")
@@ -187,8 +187,8 @@ def _args() -> Any:
 
 def main():
     """
-  cli main entry
-  """
+    cli main entry
+    """
     args = _args()
     slack = SlackCleaner(args.token, args.log, args.rate)
 
