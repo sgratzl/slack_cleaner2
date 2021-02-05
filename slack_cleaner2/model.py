@@ -928,6 +928,8 @@ class SlackCleaner:
             if error.response['error'] == "missing_scope" and scopes:
                 self.log.warning("%s: missing scope error: %s is missing", method,
                                  f"one of '{scopes}'" if len(scopes) != 1 else scopes[0])
+            elif error.response['error'] == "fetch_members_failed":
+                self.log.debug("%s: fetch_members_failed: is it an archived channel?", method)
             else:
                 self.log.error("%s: unknown error occurred: %s", method, error)
             return default_value
