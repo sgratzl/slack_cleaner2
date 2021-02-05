@@ -187,6 +187,13 @@ class SlackChannel:
         self._slack = slack
         self.json = entry
 
+    @property
+    def is_archived(self) -> bool:
+        """
+        whether this channel is archived
+        """
+        return self.json.get('is_archived') == True
+
     def __str__(self):
         return self.name
 
@@ -852,16 +859,12 @@ class SlackCleaner:
             self.myself = myself
 
         def _get_channel_users(channel: JSONDict):
-            try:
-                raw_members = self.safe_paginated_api(
-                    lambda kw: self.client.conversations_members(channel=channel["id"], **kw), "members")
-                return self._resolve_users(raw_members)
-            except SlackApiError as error:
-                if error.response['error'] == "fetch_members_failed":
-                    self.log.warning("failed to fetch members of channel %s due to a 'fetch_members_failed' error", channel.get(
-                        "name", channel["id"]))
-                    return []
-                raise error
+            if channel.get('is_archived'):
+                self.log.debug('cannot fetch members of archived channel %s', channel['name'])
+                return []
+            raw_members = self.safe_paginated_api(
+                lambda kw: self.client.conversations_members(channel=channel["id"], **kw), "members")
+            return self._resolve_users(raw_members)
 
         raw_channels = self.safe_paginated_api(lambda kw: self.client.conversations_list(
             types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
