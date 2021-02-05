@@ -192,7 +192,7 @@ class SlackChannel:
         """
         whether this channel is archived
         """
-        return self.json.get('is_archived') == True
+        return self.json.get('is_archived')
 
     def __str__(self):
         return self.name
