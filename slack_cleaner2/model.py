@@ -567,7 +567,7 @@ class SlackFile:
         :rtype: SlackFile
         """
 
-        # after = _parse_time(after)
+        after = _parse_time(after)
         before = _parse_time(before)
         if isinstance(user, SlackUser):
             user = user.id
