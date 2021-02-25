@@ -922,7 +922,7 @@ class SlackCleaner:
                 self.log.warning("%s: unknown occurred %s", method, res)
                 return default_value
             if isinstance(attr, (list, tuple)):
-                return tuple([res.get(a) for a in attr])
+                return tuple(res.get(a) for a in attr)
             return res.get(attr, default_value)
         except SlackApiError as error:
             if error.response['error'] == "missing_scope" and scopes:
