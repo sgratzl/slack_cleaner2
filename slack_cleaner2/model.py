@@ -567,7 +567,7 @@ class SlackFile:
         :rtype: SlackFile
         """
 
-        # after = _parse_time(after)
+        after = _parse_time(after)
         before = _parse_time(before)
         if isinstance(user, SlackUser):
             user = user.id
@@ -922,7 +922,7 @@ class SlackCleaner:
                 self.log.warning("%s: unknown occurred %s", method, res)
                 return default_value
             if isinstance(attr, (list, tuple)):
-                return tuple([res.get(a) for a in attr])
+                return tuple(res.get(a) for a in attr)
             return res.get(attr, default_value)
         except SlackApiError as error:
             if error.response['error'] == "missing_scope" and scopes:
