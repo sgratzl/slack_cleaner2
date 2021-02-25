@@ -15,9 +15,9 @@ jobs:
       run: |
         pip install pipenv
         pipenv install --dev --skip-lock
-    - name: tox py37
-      run: |
-        pipenv run tox -e py37
+    # - name: tox py37
+    #   run: |
+    #     pipenv run tox -e py37
     - name: tox py39
       run: |
         pipenv run tox -e py39
