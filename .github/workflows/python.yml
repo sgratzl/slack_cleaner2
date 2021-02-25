@@ -7,20 +7,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - name: Set up Python 3.7
+    - name: Set up Python 3.9
       uses: actions/setup-python@v1
       with:
-        python-version: 3.7
+        python-version: 3.9
     - name: Install dependencies
       run: |
         pip install pipenv
         pipenv install --dev --skip-lock
-    - name: tox py36
-      run: |
-        pipenv run tox -e py36
     - name: tox py37
       run: |
         pipenv run tox -e py37
+    - name: tox py39
+      run: |
+        pipenv run tox -e py39
     - name: tox lint
       run: |
         pipenv run tox -e lint
