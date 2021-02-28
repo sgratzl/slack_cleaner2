@@ -8,13 +8,14 @@ Bulk delete messages and files on Slack.
 
 Install from PyPi:
 
-```bash
+```sh
 pip install slack-cleaner2
 ```
 
 latest version
-```bash
-pip install -e git+https://github.com/sgratzl/slack_cleaner2.git
+
+```sh
+pip install -e git+https://github.com/sgratzl/slack_cleaner2.git#egg=slack_cleaner2
 ```
 
 ## Usage
@@ -154,7 +155,7 @@ The `myscript.py` file is a python script using the slack_cleaner2 module.
 
 ### Release
 
-```bash
+```sh
 bumpversion patch
 git commit -am 'release vX.X.X'
 git tag vX.X.X
