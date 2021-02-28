@@ -21,7 +21,7 @@ pytest-runner = ">=5.1"
 black = "*"
 
 [packages]
-slack-cleaner2 = {editable = true,path = "."}
+slack-cleaner2 = {editable = true, path = "."}
 
 [requires]
 python_version = "3.9"
