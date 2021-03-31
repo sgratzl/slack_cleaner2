@@ -578,7 +578,7 @@ class SlackFile:
                         user, after, before, types, channel)
 
         def fetch(kwargs):
-            return slack.client.files_list(user=user, ts_from=after, ts_to=before, types=types, channel=channel, **kwargs)
+            return slack.client.files_list(user=user, ts_from=after, ts_to=before, types=types, channel=channel, show_files_hidden_by_limit=True, **kwargs)
         files = slack.safe_paginated_api(
             fetch, "files", ["files:read"], "files.list")
 
