@@ -38,6 +38,8 @@ def _resolve_user(slack: SlackCleaner, args: Any):
     """
     if args.user == "*":
         return None
+    if not args.user:
+        return None
     return next(filter(match_user(args.user), slack.users))
 
 
@@ -99,7 +101,6 @@ def _delete_files(slack: SlackCleaner, args: Any):
     """
     delete old files
     """
-    user = _resolve_user(slack, args)
     channels = _channels(slack, args)
 
     pred: List[PredicateFun] = []
