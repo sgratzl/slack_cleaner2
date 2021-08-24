@@ -20,7 +20,7 @@ pip install -e git+https://github.com/sgratzl/slack_cleaner2.git#egg=slack_clean
 
 ## Usage
 
-In contrast to the original version (https://github.com/kfei/slack-cleaner) this version is a focusing on pure python package that allows for easy scripting instead of a vast amount of different command line arguments. 
+In contrast to the original version (https://github.com/kfei/slack-cleaner) this version is a focusing on pure python package that allows for easy scripting instead of a vast amount of different command line arguments.
 
 basic usage
 
@@ -44,7 +44,6 @@ for msg in s.c.general.msgs(with_replies=True):
 ```
 
 [Migration Guides form slack-cleaner](https://github.com/sgratzl/slack-cleaner/issues/79) contains a series of common pattern in slack cleaner and their counterpart in Slack Cleaner2
-
 
 ## Token
 
@@ -70,52 +69,51 @@ Beyond granting permissions, if you wish to use this library to delete
 messages or files posted by others, you will need to be an [Owner or
 Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role) of the workspace.
 
-
 ### User Token Scopes by Use Case
 
 #### General channel and user detection
 
-- `users:read`
-- `channels:read`
-- `groups:read`
-- `im:read`
-- `mpim:read`
+-   `users:read`
+-   `channels:read`
+-   `groups:read`
+-   `im:read`
+-   `mpim:read`
 
 #### Deleting messages from public channels
 
-- `users:read`
-- `channels:read`
-- `channels:history`
-- `chat:write`
+-   `users:read`
+-   `channels:read`
+-   `channels:history`
+-   `chat:write`
 
 #### Deleting messages from private channels
 
-- `users:read`
-- `groups:read`
-- `groups:history`
-- `chat:write`
+-   `users:read`
+-   `groups:read`
+-   `groups:history`
+-   `chat:write`
 
 #### Deleting messages from 1:1 IMs
 
 **Note**: You can only delete your own messages, not the ones of others. This is due to a restriction in the Slack API and there is nothing one can do about it.
 
-- `im:read`
-- `im:history`
-- `users:read`
-- `chat:write`
+-   `im:read`
+-   `im:history`
+-   `users:read`
+-   `chat:write`
 
 #### Deleting messages from multi-person IMs
 
-- `mpim:read`
-- `mpim:history`
-- `users:read`
-- `chat:write`
+-   `mpim:read`
+-   `mpim:history`
+-   `users:read`
+-   `chat:write`
 
 #### Deleting files
 
-- `files:read`
-- `users:read`
-- `files:write`
+-   `files:read`
+-   `users:read`
+-   `files:write`
 
 ### All User Token scopes
 
@@ -123,7 +121,7 @@ Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role
 
 ## Docker
 
-There is no direct docker file available, however since it is a python module one can easily create one: 
+There is no direct docker file available, however since it is a python module one can easily create one:
 
 ```
 FROM python:3.7-alpine
@@ -150,7 +148,6 @@ The `myscript.py` file is a python script using the slack_cleaner2 module.
 
 **To all the people who can only afford a free plan. :cry:**
 
-
 ## Development
 
 ### Release
@@ -160,7 +157,7 @@ bumpversion patch
 git commit -am 'release vX.X.X'
 git tag vX.X.X
 invoke release
-git push 
+git push
 git push --tags
 ```
 
@@ -170,7 +167,7 @@ change version in `slack_cleaner2/_info.py`
 [mit-url]: https://opensource.org/licenses/MIT
 [github-actions-image]: https://github.com/sgratzl/slack_cleaner2/workflows/python/badge.svg
 [github-actions-url]: https://github.com/sgratzl/slack_cleaner2/actions
-[pypi-image]: https://pypip.in/version/slack_cleaner2/badge.svg
+[pypi-image]: https://img.shields.io/pypi/v/slack_cleaner2
 [pypi-url]: https://pypi.python.org/pypi/slack_cleaner2/
 [docs-image]: https://readthedocs.org/projects/slack-cleaner2/badge/?version=latest
 [docs-url]: https://slack-cleaner2.readthedocs.io/en/latest/?badge=latest
