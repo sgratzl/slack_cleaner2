@@ -807,7 +807,7 @@ class SlackCleaner:
     number of elements fetched per page
     """
 
-    def __init__(self, token: str, sleep_for=0, log_to_file=False, client: Optional[WebClient] = None, logger: Optional[Logger] = None, show_progress=True, page_limit=200):
+    def __init__(self, token: Union[str, WebClient], sleep_for=0, log_to_file=False, client: Optional[WebClient] = None, logger: Optional[Logger] = None, show_progress=True, page_limit=200, team_id: Optional[str]=None):
         """
         :param token: the slack token, see README.md for details
         :type token: str
@@ -830,15 +830,17 @@ class SlackCleaner:
         self.log = SlackLogger(log_to_file, logger=logger,
                                show_progress=show_progress)
         self.sleep_for = sleep_for
-        self.token = token
+        self.token = token if isinstance(token, str) else 'unknown'
         self.page_limit = page_limit
 
         self.log.debug("start")
 
-        if client:
+        if isinstance(token, WebClient):
+            self.client = token
+        elif client:
             self.client = client
         else:
-            client = WebClient(token=token, )
+            client = WebClient(token=token, team_id=team_id)
             self.client = client
 
         raw_users = self.safe_api(self.client.users_list, "members", [], [
