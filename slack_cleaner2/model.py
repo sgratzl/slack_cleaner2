@@ -807,7 +807,8 @@ class SlackCleaner:
     number of elements fetched per page
     """
 
-    def __init__(self, token: Union[str, WebClient], sleep_for=0, log_to_file=False, client: Optional[WebClient] = None, logger: Optional[Logger] = None, show_progress=True, page_limit=200, team_id: Optional[str]=None):
+    def __init__(self, token: Union[str, WebClient], sleep_for=0, log_to_file=False, client: Optional[WebClient] = None,
+                 logger: Optional[Logger] = None, show_progress=True, page_limit=200, team_id: Optional[str]=None):
         """
         :param token: the slack token, see README.md for details
         :type token: str
@@ -960,7 +961,7 @@ class SlackCleaner:
 
         while True:
             page, meta = self.safe_api(list_page, [attr, "response_metadata"], [
-                                       [], dict()], scopes, method)
+                                       [], {}], scopes, method)
             for elem in page:
                 yield elem
             if not meta or not meta.get("next_cursor"):
