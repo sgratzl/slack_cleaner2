@@ -128,6 +128,9 @@ class SlackUser:
                 yield msg
 
     def reactions(self) -> Iterator[Dict]:
+        """
+        list alls reactions of this user
+        """
         return self._slack.safe_paginated_api(lambda kw: self._slack.client.reactions_list(user=self.id, **kw), "items", [], "reactions.list")
 
 
@@ -501,9 +504,6 @@ class SlackMessage:
 class ASlackReaction(ABC):
     """
     internal model of a slack message reaction
-    """
-    """
-    msg the reaction was to
     """
 
     users: List[SlackUser]
