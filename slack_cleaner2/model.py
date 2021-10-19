@@ -90,7 +90,7 @@ class SlackUser:
         self.bot = self.is_bot or self.is_app_user
 
     def __str__(self):
-        return "{s.name} ({s.id}) {s.real_name}".format(s=self)
+        return f"{self.name} ({self.id}) {self.real_name}"
 
     def __repr__(self):
         return self.__str__()
@@ -495,7 +495,9 @@ class SlackMessage:
 
 
     def __str__(self):
-        return "{c}:{t} ({u}): {s}".format(c=self.channel.name, t=self.ts, u="bot" if self.bot else self.user, s=self.text[0:20] if len(self.text) > 20 else self.text)
+        user_name = "bot" if self.bot else self.user
+        text = self.text[0:20] if len(self.text) > 20 else self.text
+        return f"{self.channel.name}:{self.ts} ({user_name}): {text}"
 
     def __repr__(self):
         return self.__str__()
@@ -583,7 +585,7 @@ class ASlackReaction(ABC):
             return error
 
     def __str__(self):
-        return "{b}:{m}({c})".format(b=self._context, m=self.name, c=self.count)
+        return f"{self._context}:{self.name}({self.count})"
 
     def __repr__(self):
         return self.__str__()

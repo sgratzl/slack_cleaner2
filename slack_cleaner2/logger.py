@@ -26,7 +26,7 @@ class SlackLoggerLayer:
         self._parent = parent
 
     def __str__(self):
-        return "{n}: deleted: {d}, errors: {e}".format(n=self.name, d=self.deleted, e=self.errors)
+        return f"{self.name}: deleted: {self.deleted}, errors: {self.errors}"
 
     def __call__(self, error=False):
         if error:
