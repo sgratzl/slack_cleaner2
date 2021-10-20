@@ -19,12 +19,12 @@ def _show_infos(slack: SlackCleaner):
     """
 
     def _print_dict(cat: str, data: Dict[str, str]):
-        msg = "{}{}:{}".format(Fore.GREEN, cat, Fore.RESET)
+        msg = f"{Fore.GREEN}{cat}:{Fore.RESET}"
         for k, v in data.items():
-            msg += "\n{} {}".format(k, v)
+            msg += f"\n{k} {v}"
         slack.log.info(msg)
 
-    _print_dict("users", {u.id: "{} = {}".format(u.name, u.real_name) for u in slack.users})
+    _print_dict("users", {u.id: f"{u.name} = {u.real_name}" for u in slack.users})
 
     _print_dict("public channels", {u.id: u.name for u in slack.channels})
     _print_dict("private channels", {u.id: u.name for u in slack.groups})

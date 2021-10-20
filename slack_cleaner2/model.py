@@ -3,6 +3,7 @@
  model module for abstracting channels, messages, and files
 """
 from typing import Any, Callable, cast, Dict, Generic, Iterator, Iterable, List, Optional, Sequence, TypeVar, Union
+from abc import ABC, abstractmethod
 import time
 from os import path
 from enum import Enum
@@ -89,7 +90,7 @@ class SlackUser:
         self.bot = self.is_bot or self.is_app_user
 
     def __str__(self):
-        return "{s.name} ({s.id}) {s.real_name}".format(s=self)
+        return f"{self.name} ({self.id}) {self.real_name}"
 
     def __repr__(self):
         return self.__str__()
@@ -125,6 +126,12 @@ class SlackUser:
         for msg in self._slack.msgs((c for c in self._slack.conversations if self in c.members), after=after, before=before, with_replies=with_replies):
             if msg.user == self:
                 yield msg
+
+    def reactions(self) -> Iterator[Dict]:
+        """
+        list alls reactions of this user
+        """
+        return self._slack.safe_paginated_api(lambda kw: self._slack.client.reactions_list(user=self.id, **kw), "items", [], "reactions.list")
 
 
 class SlackChannelType(Enum):
@@ -369,6 +376,11 @@ class SlackMessage:
     thus cannot be deleted but is thread can
     """
 
+    channel: SlackChannel
+    """
+    channel this message is part of
+    """
+
     def __init__(self, entry: JSONDict, user: Optional[SlackUser], channel: SlackChannel, slack: "SlackCleaner"):
         """
         :param entry: json dict entry as returned by slack api
@@ -382,7 +394,7 @@ class SlackMessage:
         """
         self.ts = float(entry["ts"])
         self.text = entry["text"]
-        self._channel = channel
+        self.channel = channel
         self._slack = slack
         self.json = entry
         self.user = user
@@ -405,7 +417,7 @@ class SlackMessage:
         # Do until being rate limited
         while True:
             try:
-                return self._slack.client.chat_delete(channel=self._channel.id,
+                return self._slack.client.chat_delete(channel=self.channel.id,
                                                       ts=self.json["ts"], as_user=as_user)
             except SlackApiError as error:
                 if error.response["error"] == "ratelimited":
@@ -461,13 +473,153 @@ class SlackMessage:
         :return: generator of SlackMessage objects
         :rtype: SlackMessage
         """
-        return self._channel.replies_to(self)
+        return self.channel.replies_to(self)
+
+    def reactions(self) -> List["SlackMessageReaction"]:
+        """
+        list all reactions of this message
+
+        :return: generator of SlackMessageReaction objects
+        :rtype: SlackMessageReaction
+        """
+        self._slack.log.debug("list reactions of %s", self)
+
+        message = self._slack.safe_api(lambda: self._slack.client.reactions_get(
+            channel=self.channel.id, ts=self.ts, full=True,), "message", {}, ['reactions:read'], "reactions.get")
+
+        def parse_reaction(reaction: JSONDict) -> 'SlackMessageReaction':
+            users = [self._slack.resolve_user(u) for u in reaction.get('users', [])]
+            return SlackMessageReaction(reaction, self, users, self._slack)
+
+        return [parse_reaction(r) for r in message.get('reactions', [])]
+
 
     def __str__(self):
-        return "{c}:{t} ({u}): {s}".format(c=self._channel.name, t=self.ts, u="bot" if self.bot else self.user, s=self.text[0:20] if len(self.text) > 20 else self.text)
+        user_name = "bot" if self.bot else self.user
+        text = self.text[0:20] if len(self.text) > 20 else self.text
+        return f"{self.channel.name}:{self.ts} ({user_name}): {text}"
 
     def __repr__(self):
         return self.__str__()
+
+
+class ASlackReaction(ABC):
+    """
+    internal model of a slack message reaction
+    """
+
+    users: List[SlackUser]
+    """
+    users
+    """
+
+    name: str
+    """
+    reaction name
+    """
+
+    count: int = 1
+    """
+    reaction count
+    """
+
+    json: JSONDict
+    """
+    the underlying slack response as json
+    """
+
+    _slack: 'SlackCleaner'
+
+    def __init__(self, entry: JSONDict, users: List[SlackUser], slack: "SlackCleaner"):
+        """
+        :param entry: json dict entry as returned by slack api
+        :type entry: dict
+        :param users: underlying users
+        :type users: List[SlackUser]
+        :param slack: slack cleaner instance
+        :type slack: SlackCleaner
+        """
+        self.name = entry['name']
+        self.count = entry['count']
+        self.users = users
+        self.json = entry
+        self._slack = slack
+
+    @abstractmethod
+    def _context(self) -> str:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _delete_impl(self):
+        raise NotImplementedError()
+
+    def _delete_rated(self):
+        # Do until being rate limited
+        while True:
+            try:
+                return self._delete_impl()
+            except SlackApiError as error:
+                if error.response["error"] == "ratelimited":
+                    # The `Retry-After` header will tell you how long to wait before retrying
+                    delay = int(error.response.headers["Retry-After"])
+                    self._slack.log.debug(
+                        f"Rate limited. Retrying in {delay} seconds")
+                    sleep(delay)
+                    continue
+                raise error
+
+    def delete(self) -> Optional[Exception]:
+        """
+        delete the reaction
+
+        :return:  None if successful else exception
+        :rtype: Exception
+        """
+        try:
+            # No response is a good response so no error
+            self._delete_rated()
+            self._slack.post_delete(self)
+            return None
+        except SlackApiError as error:
+            self._slack.post_delete(self, error)
+            return error
+
+    def __str__(self):
+        return f"{self._context}:{self.name}({self.count})"
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class SlackMessageReaction(ASlackReaction):
+    """
+    internal model of a slack message reaction
+    """
+
+    msg: SlackMessage
+    """
+    slack message this reaction is of
+    """
+
+    def __init__(self, entry: JSONDict, msg: SlackMessage, users: List[SlackUser], slack: "SlackCleaner"):
+        """
+        :param entry: json dict entry as returned by slack api
+        :type entry: dict
+        :param msg
+        :type msg: SlackMessage
+        :param users: underlying users
+        :type users: List[SlackUser]
+        :param slack: slack cleaner instance
+        :type slack: SlackCleaner
+        """
+        super().__init__(entry, users, slack)
+        self.msg = msg
+
+    def _context(self) -> str:
+        return str(self.msg)
+
+    def _delete_impl(self):
+        return self._slack.client.reactions_remove(self.name, channel=self.msg.channel.id, timestamp=self.msg.ts)
 
 
 class SlackFile:
@@ -684,6 +836,56 @@ class SlackFile:
             for chunk in self.download_stream():
                 out.write(chunk)
         return file_name or self.name
+
+
+    def reactions(self) -> List["SlackFileReaction"]:
+        """
+        list all reactions of this file
+
+        :return: generator of SlackFileReaction objects
+        :rtype: SlackFileReaction
+        """
+        self._slack.log.debug("list reactions of %s", self)
+
+        wrapper = self._slack.safe_api(lambda: self._slack.client.reactions_get(
+            file=self.id, full=True,), "file", {}, ['reactions:read'], "reactions.get")
+
+        def parse_reaction(reaction: JSONDict) -> 'SlackFileReaction':
+            users = [self._slack.resolve_user(u) for u in reaction.get('users', [])]
+            return SlackFileReaction(reaction, self, users, self._slack)
+
+        return [parse_reaction(r) for r in wrapper.get('reactions', [])]
+
+
+class SlackFileReaction(ASlackReaction):
+    """
+    internal model of a slack message reaction
+    """
+
+    file: SlackFile
+    """
+    slack file this reaction is of
+    """
+
+    def __init__(self, entry: JSONDict, file: SlackFile, users: List[SlackUser], slack: "SlackCleaner"):
+        """
+        :param entry: json dict entry as returned by slack api
+        :type entry: dict
+        :param file
+        :type file: SlackFile
+        :param users: underlying users
+        :type users: List[SlackUser]
+        :param slack: slack cleaner instance
+        :type slack: SlackCleaner
+        """
+        super().__init__(entry, users, slack)
+        self.file = file
+
+    def _context(self) -> str:
+        return str(self.file)
+
+    def _delete_impl(self):
+        return self._slack.client.reactions_remove(name=self.name, file=self.file.id)
 
 
 def _parse_time(time_str: TimeIsh) -> Optional[float]:
@@ -991,21 +1193,29 @@ class SlackCleaner:
     def _resolve_users(self, ids: List[str]) -> List[SlackUser]:
         return [self.resolve_user(user_id) for user_id in ids]
 
-    def post_delete(self, file_or_msg: Union[SlackMessage, SlackFile], error: Optional[SlackApiError] = None):
+    def post_delete(self, obj: Union[SlackMessage, SlackFile, ASlackReaction], error: Optional[SlackApiError] = None):
         """
         log a deleted file or message with optional error
         """
         self.log.deleted(error)
 
+        ctx = ''
+        if isinstance(obj, SlackMessage):
+            ctx = "chat:write"
+        elif isinstance(obj, SlackFile):
+            ctx = "files:write"
+        else:
+            ctx = "reactions:write"
+
         if error:
             if error.response['error'] == "missing_scope":
-                self.log.warning("cannot delete entry: %s: missing '%s' scope", file_or_msg,
-                                 "chat:write" if isinstance(file_or_msg, SlackMessage) else "files:write")
+                self.log.warning("cannot delete entry: %s: missing '%s' scope", obj,
+                                 ctx)
             else:
                 self.log.warning("cannot delete entry: %s: %s",
-                                 file_or_msg, error.response['error'])
+                                 obj, error.response['error'])
         else:
-            self.log.debug("deleted entry: %s", file_or_msg)
+            self.log.debug("deleted entry: %s", obj)
 
         if self.sleep_for > 0:
             sleep(self.sleep_for)
