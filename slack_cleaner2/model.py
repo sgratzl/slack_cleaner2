@@ -9,6 +9,7 @@ from os import path
 from enum import Enum
 from logging import Logger
 from time import sleep
+from functools import cached_property
 import requests
 from requests import Response
 from slack_sdk import WebClient
@@ -160,11 +161,6 @@ class SlackChannel:
     channel name
     """
 
-    members: List[SlackUser] = []
-    """
-    list of members
-    """
-
     json: JSONDict
     """
     the underlying slack response as json
@@ -175,12 +171,10 @@ class SlackChannel:
     the channel type
     """
 
-    def __init__(self, entry: JSONDict, members: List[SlackUser], channel_type: SlackChannelType, slack: "SlackCleaner"):
+    def __init__(self, entry: JSONDict, channel_type: SlackChannelType, slack: "SlackCleaner"):
         """
         :param entry: json dict entry as returned by slack api
         :type entry: dict
-        :param members: list of members
-        :type members: [SlackUser]
         :param channel_type: the channel type
         :type channel_type: SlackChannelType
         :param slack: slack cleaner instance
@@ -189,10 +183,21 @@ class SlackChannel:
 
         self.id = entry["id"]
         self.name = entry.get("name", self.id)
-        self.members = members
         self.type = channel_type
         self._slack = slack
         self.json = entry
+
+    @cached_property
+    def members(self) -> List[SlackUser]:
+        """
+        list of members
+        """
+        if self.is_archived:
+            self._slack.log.debug('cannot fetch members of archived channel %s', self.name)
+            return []
+        raw_members = self._slack.safe_paginated_api(
+            lambda kw: self._slack.client.conversations_members(channel=self.id, **kw), "members")
+        return [self._slack.resolve_user(user) for user in raw_members]
 
     @property
     def is_archived(self) -> bool:
@@ -318,9 +323,16 @@ class SlackDirectMessage(SlackChannel):
         :type slack: SlackCleaner
         """
 
-        super().__init__(entry, [user], SlackChannelType.IM, slack)
+        super().__init__(entry, SlackChannelType.IM, slack)
         self.name = user.name
         self.user = user
+
+    @cached_property
+    def members(self) -> List[SlackUser]:
+        """
+        list of members
+        """
+        return [self.user]
 
 
 class SlackMessage:
@@ -1063,31 +1075,22 @@ class SlackCleaner:
         else:
             self.myself = myself
 
-        def _get_channel_users(channel: JSONDict):
-            if channel.get('is_archived'):
-                self.log.debug('cannot fetch members of archived channel %s', channel['name'])
-                return []
-            raw_members = self.safe_paginated_api(
-                lambda kw: self.client.conversations_members(channel=channel["id"], **kw), "members")
-            return self._resolve_users(raw_members)
-
         raw_channels = self.safe_paginated_api(lambda kw: self.client.conversations_list(
             types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
-        self.channels = [SlackChannel(m, _get_channel_users(m), SlackChannelType.PUBLIC, self)
+        self.channels = [SlackChannel(m, SlackChannelType.PUBLIC, self)
                          for m in raw_channels if m.get("is_channel") and not m.get("is_private")]
         self.log.debug("collected channels %s", self.channels)
 
         raw_groups = self.safe_paginated_api(lambda kw: self.client.conversations_list(
             types="private_channel", **kw), "channels", ["groups:read"], "conversations.list (private_channel)")
         self.groups = [
-            SlackChannel(m, _get_channel_users(m), SlackChannelType.PRIVATE, self) for m in raw_groups if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")
+            SlackChannel(m, SlackChannelType.PRIVATE, self) for m in raw_groups if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")
         ]
         self.log.debug("collected groups %s", self.groups)
 
         raw_mpim = self.safe_paginated_api(lambda kw: self.client.conversations_list(
             types="mpim", **kw), "channels", ["mpim:read"], "conversations.list (mpim)")
-        self.mpim = [SlackChannel(m, _get_channel_users(
-            m), SlackChannelType.MPIM, self) for m in raw_mpim if m.get("is_mpim")]
+        self.mpim = [SlackChannel(m, SlackChannelType.MPIM, self) for m in raw_mpim if m.get("is_mpim")]
         self.log.debug("collected mpim %s", self.mpim)
 
         raw_ims = self.safe_paginated_api(lambda kw: self.client.conversations_list(
