@@ -246,8 +246,7 @@ class SlackChannel:
         for msg in reversed(list(messages)) if asc else messages:
             # Delete user messages
             if msg["type"] == "message":
-                user = _find_user(self._slack, msg)
-                s_msg = SlackMessage(msg, user, self, self._slack)
+                s_msg = SlackMessage(msg, self, self._slack)
                 yield s_msg
 
                 if with_replies and s_msg.has_replies:
@@ -280,8 +279,7 @@ class SlackChannel:
         for msg in reversed(list(messages)) if asc else messages:
             # Delete user messages
             if msg["type"] == "message":
-                user = _find_user(self._slack, msg)
-                s_msg = SlackMessage(msg, user, self, self._slack)
+                s_msg = SlackMessage(msg, self, self._slack)
                 if base_msg.ts != s_msg.ts:  # don't yield itself
                     yield s_msg
 
@@ -311,18 +309,17 @@ class SlackDirectMessage(SlackChannel):
     user talking to
     """
 
-    def __init__(self, entry: JSONDict, user: SlackUser, slack: "SlackCleaner"):
+    def __init__(self, entry: JSONDict, slack: "SlackCleaner"):
         """
         :param entry: json dict entry as returned by slack api
         :type entry: dict
-        :param user: user talking to
-        :type user: SlackUser
         :param api: Slacker sub api
         :param slack: slack cleaner instance
         :type slack: SlackCleaner
         """
 
         super().__init__(entry, SlackChannelType.IM, slack)
+        user = slack.resolve_user(entry["user"])
         self.name = user.name
         self.user = user
 
@@ -392,12 +389,10 @@ class SlackMessage:
     channel this message is part of
     """
 
-    def __init__(self, entry: JSONDict, user: Optional[SlackUser], channel: SlackChannel, slack: "SlackCleaner"):
+    def __init__(self, entry: JSONDict, channel: SlackChannel, slack: "SlackCleaner"):
         """
         :param entry: json dict entry as returned by slack api
         :type entry: dict
-        :param user: user wrote this message
-        :type user: SlackUser
         :param channel: channels this message is written in
         :type channel: SlackChannel
         :param slack: slack cleaner instance
@@ -408,12 +403,12 @@ class SlackMessage:
         self.channel = channel
         self._slack = slack
         self.json = entry
-        self.user = user
+        self.user = slack.resolve_user(entry['user']) if "user" in entry else None
         self.bot = entry.get("subtype") == "bot_message" or "bot_id" in entry
         self.pinned_to = entry.get("pinned_to", False)
         self.has_replies = entry.get("reply_count", 0) > 0
         self.thread_ts = float(entry.get("thread_ts", entry["ts"]))
-        self.files = [SlackFile(f, user if user else slack.resolve_user(f["user"]), slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
+        self.files = [SlackFile(f, slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
         self.is_tombstone = entry.get("subtype", None) == "tombstone"
 
     @property
@@ -494,8 +489,7 @@ class SlackMessage:
         )
 
         def parse_reaction(reaction: JSONDict) -> "SlackMessageReaction":
-            users = [self._slack.resolve_user(u) for u in reaction.get("users", [])]
-            return SlackMessageReaction(reaction, self, users, self._slack)
+            return SlackMessageReaction(reaction, self, self._slack)
 
         return [parse_reaction(r) for r in message.get("reactions", [])]
 
@@ -535,18 +529,16 @@ class ASlackReaction(ABC):
 
     _slack: "SlackCleaner"
 
-    def __init__(self, entry: JSONDict, users: List[SlackUser], slack: "SlackCleaner"):
+    def __init__(self, entry: JSONDict, slack: "SlackCleaner"):
         """
         :param entry: json dict entry as returned by slack api
         :type entry: dict
-        :param users: underlying users
-        :type users: List[SlackUser]
         :param slack: slack cleaner instance
         :type slack: SlackCleaner
         """
         self.name = entry["name"]
         self.count = entry["count"]
-        self.users = users
+        self.users = [slack.resolve_user(u) for u in entry.get("users", [])]
         self.json = entry
         self._slack = slack
 
@@ -605,18 +597,16 @@ class SlackMessageReaction(ASlackReaction):
     slack message this reaction is of
     """
 
-    def __init__(self, entry: JSONDict, msg: SlackMessage, users: List[SlackUser], slack: "SlackCleaner"):
+    def __init__(self, entry: JSONDict, msg: SlackMessage, slack: "SlackCleaner"):
         """
         :param entry: json dict entry as returned by slack api
         :type entry: dict
         :param msg
         :type msg: SlackMessage
-        :param users: underlying users
-        :type users: List[SlackUser]
         :param slack: slack cleaner instance
         :type slack: SlackCleaner
         """
-        super().__init__(entry, users, slack)
+        super().__init__(entry, slack)
         self.msg = msg
 
     def _context(self) -> str:
@@ -681,7 +671,7 @@ class SlackFile:
     the underlying slack response as json
     """
 
-    def __init__(self, entry: JSONDict, user: SlackUser, slack: "SlackCleaner"):
+    def __init__(self, entry: JSONDict, slack: "SlackCleaner"):
         """
         :param entry: json dict entry as returned by slack api
         :type entry: dict
@@ -693,7 +683,7 @@ class SlackFile:
         self.hidden_by_limit = "hidden_by_limit" in entry
         self.name = entry.get("name", "Unknown")
         self.title = entry.get("title", "Unknown")
-        self.user = user
+        self.user = slack.resolve_user(entry["user"])
         self.pinned_to = entry.get("pinned_to", False)
         self.mimetype = entry.get("mimetype")
         self.size = entry.get("size", -1)
@@ -738,7 +728,7 @@ class SlackFile:
         files = slack.safe_paginated_api(fetch, "files", ["files:read"], "files.list")
 
         for slack_file in files:
-            yield SlackFile(slack_file, slack.resolve_user(slack_file["user"]), slack)
+            yield SlackFile(slack_file, slack)
 
     def __str__(self) -> str:
         return self.name
@@ -849,8 +839,7 @@ class SlackFile:
         )
 
         def parse_reaction(reaction: JSONDict) -> "SlackFileReaction":
-            users = [self._slack.resolve_user(u) for u in reaction.get("users", [])]
-            return SlackFileReaction(reaction, self, users, self._slack)
+            return SlackFileReaction(reaction, self, self._slack)
 
         return [parse_reaction(r) for r in wrapper.get("reactions", [])]
 
@@ -865,18 +854,16 @@ class SlackFileReaction(ASlackReaction):
     slack file this reaction is of
     """
 
-    def __init__(self, entry: JSONDict, file: SlackFile, users: List[SlackUser], slack: "SlackCleaner"):
+    def __init__(self, entry: JSONDict, file: SlackFile, slack: "SlackCleaner"):
         """
         :param entry: json dict entry as returned by slack api
         :type entry: dict
         :param file
         :type file: SlackFile
-        :param users: underlying users
-        :type users: List[SlackUser]
         :param slack: slack cleaner instance
         :type slack: SlackCleaner
         """
-        super().__init__(entry, users, slack)
+        super().__init__(entry, slack)
         self.file = file
 
     def _context(self) -> str:
@@ -1078,7 +1065,7 @@ class SlackCleaner:
         self.log.debug("collected mpim %s", self.mpim)
 
         raw_ims = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="im", **kw), "channels", ["im:read"], "conversations.list (im)")
-        self.ims = [SlackDirectMessage(m, self.resolve_user(m["user"]), self) for m in raw_ims if m.get("is_im")]
+        self.ims = [SlackDirectMessage(m, self) for m in raw_ims if m.get("is_im")]
         self.log.debug("collected ims %s", self.ims)
 
         # al different types with a similar interface
@@ -1191,9 +1178,6 @@ class SlackCleaner:
         self.users.append(user)
         return user
 
-    def _resolve_users(self, ids: List[str]) -> List[SlackUser]:
-        return [self.resolve_user(user_id) for user_id in ids]
-
     def post_delete(self, obj: Union[SlackMessage, SlackFile, ASlackReaction], error: Optional[SlackApiError] = None):
         """
         log a deleted file or message with optional error
@@ -1260,10 +1244,3 @@ class SlackCleaner:
         for channel in channels:
             for msg in channel.msgs(after=after, before=before, with_replies=with_replies):
                 yield msg
-
-
-def _find_user(slack: SlackCleaner, msg: Dict[str, Any]) -> Optional[SlackUser]:
-    if "user" not in msg:
-        return None
-    userid = msg["user"]
-    return slack.resolve_user(userid)
