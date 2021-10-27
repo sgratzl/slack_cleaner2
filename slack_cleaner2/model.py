@@ -197,7 +197,7 @@ class SlackChannel:
             self._slack.log.debug("cannot fetch members of archived channel %s", self.name)
             return []
         raw_members = self._slack.safe_paginated_api(lambda kw: self._slack.client.conversations_members(channel=self.id, **kw), "members")
-        return [self._slack.resolve_user(user) for user in raw_members]
+        return [self._slack.users.resolve_user(user) for user in raw_members]
 
     @property
     def is_archived(self) -> bool:
@@ -327,7 +327,7 @@ class SlackDirectMessage(SlackChannel):
         """
         user talking to
         """
-        return self._slack.resolve_user(self.json["user"])
+        return self._slack.users.resolve_user(self.json["user"])
 
     @cached_property
     def members(self) -> List[SlackUser]:
@@ -422,7 +422,7 @@ class SlackMessage:
         """
         user sending the messsage
         """
-        return self._slack.resolve_user(self.user_id) if self.user_id else None
+        return self._slack.users.resolve_user(self.user_id) if self.user_id else None
 
     @property
     def is_thread_parent(self) -> bool:
@@ -554,7 +554,7 @@ class ASlackReaction(ABC):
         """
         users
         """
-        return [self._slack.resolve_user(u) for u in self.json.get("users", [])]
+        return [self._slack.users.resolve_user(u) for u in self.json.get("users", [])]
 
     @abstractmethod
     def _context(self) -> str:
@@ -693,7 +693,7 @@ class SlackFile:
         """
         user created this file
         """
-        return self._slack.resolve_user(self.json["user"])
+        return self._slack.users.resolve_user(self.json["user"])
 
     @staticmethod
     def list(
@@ -943,6 +943,48 @@ class ByKeyLookup(Generic[ByKey]):
         return repr(self._arr)
 
 
+class SlackUsers(ByKeyLookup[SlackUser]):
+    """
+    helper for managing slack users
+    """
+
+    def __init__(self, arr: List[SlackUser], slack: "SlackCleaner"):
+        super().__init__(arr, lambda v: [v.name, v.id])
+        self._slack = slack
+
+    @cached_property
+    def myself(self) -> SlackUser:
+        """
+        the calling slack user, i.e the one whose token is used
+        """
+        # determine one self
+        my_id = self._slack.safe_api(self._slack.client.auth_test, "user_id", None, [], "auth.test")
+        myself = self.get(my_id)
+        if not myself:
+            self._slack.log.error("cannot determine my own user, using the first one or a dummy one")
+            return self[0] or self._add_dummy_user(my_id or "?????")
+        return myself
+
+    def resolve_user(self, user_id: str) -> SlackUser:
+        """
+        resolve a given user_id with creating a dummy user if needed
+
+        :param user_id: user id to resolve
+        :type user_id: str
+        :rtype: SlackUser
+        """
+        if user_id not in self:
+            self._slack.log.error("user %s not found - generating dummy one", user_id)
+            return self._add_dummy_user(user_id)
+        return cast(SlackUser, self[user_id])
+
+    def _add_dummy_user(self, user_id: str) -> SlackUser:
+        entry = {"id": user_id, "name": user_id, "profile": {"real_name": user_id, "display_name": user_id, "email": None}, "is_bot": False, "is_app_user": False}
+        user = SlackUser(entry, self._slack)
+        self.append(user)
+        return user
+
+
 class SlackCleaner:
     """
     base class for cleaning up slack providing access to channels and users
@@ -1011,12 +1053,12 @@ class SlackCleaner:
             self.client = client
 
     @cached_property
-    def users(self) -> ByKeyLookup[SlackUser]:
+    def users(self) -> SlackUsers:
         """
         list of known users
         """
         raw_users = self.safe_paginated_api(lambda kw: self.client.users_list(**kw), "members", ["users:read (bot, user)"], "users.list")
-        users = ByKeyLookup[SlackUser]([SlackUser(m, self) for m in raw_users], lambda v: [v.name, v.id])
+        users = SlackUsers([SlackUser(m, self) for m in raw_users], self)
         self.log.debug("collected users %s", users)
         return users
 
@@ -1061,7 +1103,7 @@ class SlackCleaner:
         return ims
 
     @cached_property
-    def c(self) -> ByKeyLookup[SlackChannel]: # pylint: disable=invalid-name
+    def c(self) -> ByKeyLookup[SlackChannel]:  # pylint: disable=invalid-name
         """
         alias of .conversations with advanced accessors
         """
@@ -1079,18 +1121,12 @@ class SlackCleaner:
         """
         return [c for c in self.c]
 
-    @cached_property
+    @property
     def myself(self) -> SlackUser:
         """
         the calling slack user, i.e the one whose token is used
         """
-        # determine one self
-        my_id = self.safe_api(self.client.auth_test, "user_id", None, [], "auth.test")
-        myself = self.users[my_id]
-        if not myself:
-            self.log.error("cannot determine my own user, using the first one or a dummy one")
-            return self.users[0] or self._add_dummy_user(my_id or "?????")
-        return myself
+        return self.users.myself
 
     def call_rate_limited(self, fun: Callable) -> Any:
         """
@@ -1174,25 +1210,6 @@ class SlackCleaner:
             if not meta or not meta.get("next_cursor"):
                 break
             next_cursor = meta["next_cursor"]
-
-    def resolve_user(self, user_id: str) -> SlackUser:
-        """
-        resolve a given user_id with creating a dummy user if needed
-
-        :param user_id: user id to resolve
-        :type user_id: str
-        :rtype: SlackUser
-        """
-        if user_id not in self.users:
-            self.log.error("user %s not found - generating dummy one", user_id)
-            return self._add_dummy_user(user_id)
-        return cast(SlackUser, self.users[user_id])
-
-    def _add_dummy_user(self, user_id: str):
-        entry = {"id": user_id, "name": user_id, "profile": {"real_name": user_id, "display_name": user_id, "email": None}, "is_bot": False, "is_app_user": False}
-        user = SlackUser(entry, self)
-        self.users.append(user)
-        return user
 
     def post_delete(self, obj: Union[SlackMessage, SlackFile, ASlackReaction], error: Optional[SlackApiError] = None):
         """
