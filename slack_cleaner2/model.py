@@ -94,7 +94,7 @@ class SlackUser:
         return f"{self.name} ({self.id}) {self.real_name}"
 
     def __repr__(self):
-        return self.__str__()
+        return str(self)
 
     def files(self, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None) -> Iterator["SlackFile"]:
         """
@@ -156,11 +156,6 @@ class SlackChannel:
     channel id
     """
 
-    name: str
-    """
-    channel name
-    """
-
     json: JSONDict
     """
     the underlying slack response as json
@@ -182,10 +177,16 @@ class SlackChannel:
         """
 
         self.id = entry["id"]
-        self.name = entry.get("name", self.id)
         self.type = channel_type
         self._slack = slack
         self.json = entry
+
+    @property
+    def name(self) -> str:
+        """
+        channel name
+        """
+        return self.json.get("name", self.id)
 
     @cached_property
     def members(self) -> List[SlackUser]:
@@ -209,7 +210,7 @@ class SlackChannel:
         return self.name
 
     def __repr__(self):
-        return self.__str__()
+        return self(self)
 
     def _scope(self):
         if self.type == SlackChannelType.PRIVATE:
@@ -304,24 +305,29 @@ class SlackDirectMessage(SlackChannel):
     internal model of a slack direct message channel
     """
 
-    user: SlackUser
-    """
-    user talking to
-    """
-
     def __init__(self, entry: JSONDict, slack: "SlackCleaner"):
         """
         :param entry: json dict entry as returned by slack api
         :type entry: dict
-        :param api: Slacker sub api
         :param slack: slack cleaner instance
         :type slack: SlackCleaner
         """
 
         super().__init__(entry, SlackChannelType.IM, slack)
-        user = slack.resolve_user(entry["user"])
-        self.name = user.name
-        self.user = user
+
+    @property
+    def name(self) -> str:
+        """
+        IM channel user name
+        """
+        return self.user.name
+
+    @cached_property
+    def user(self) -> SlackUser:
+        """
+        user talking to
+        """
+        return self._slack.resolve_user(self.json["user"])
 
     @cached_property
     def members(self) -> List[SlackUser]:
@@ -350,9 +356,9 @@ class SlackMessage:
     message text
     """
 
-    user: Optional[SlackUser]
+    user_id: Optional[str]
     """
-    user sending the messsage
+    user id writing the message
     """
 
     bot = False
@@ -403,13 +409,20 @@ class SlackMessage:
         self.channel = channel
         self._slack = slack
         self.json = entry
-        self.user = slack.resolve_user(entry['user']) if "user" in entry else None
+        self.user_id = entry["user"] if "user" in entry else None
         self.bot = entry.get("subtype") == "bot_message" or "bot_id" in entry
         self.pinned_to = entry.get("pinned_to", False)
         self.has_replies = entry.get("reply_count", 0) > 0
         self.thread_ts = float(entry.get("thread_ts", entry["ts"]))
         self.files = [SlackFile(f, slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
         self.is_tombstone = entry.get("subtype", None) == "tombstone"
+
+    @cached_property
+    def user(self) -> Optional[SlackUser]:
+        """
+        user sending the messsage
+        """
+        return self._slack.resolve_user(self.user_id) if self.user_id else None
 
     @property
     def is_thread_parent(self) -> bool:
@@ -499,17 +512,12 @@ class SlackMessage:
         return f"{self.channel.name}:{self.ts} ({user_name}): {text}"
 
     def __repr__(self):
-        return self.__str__()
+        return str(self)
 
 
 class ASlackReaction(ABC):
     """
     internal model of a slack message reaction
-    """
-
-    users: List[SlackUser]
-    """
-    users
     """
 
     name: str
@@ -538,9 +546,15 @@ class ASlackReaction(ABC):
         """
         self.name = entry["name"]
         self.count = entry["count"]
-        self.users = [slack.resolve_user(u) for u in entry.get("users", [])]
         self.json = entry
         self._slack = slack
+
+    @cached_property
+    def users(self) -> List[SlackUser]:
+        """
+        users
+        """
+        return [self._slack.resolve_user(u) for u in self.json.get("users", [])]
 
     @abstractmethod
     def _context(self) -> str:
@@ -551,18 +565,7 @@ class ASlackReaction(ABC):
         raise NotImplementedError()
 
     def _delete_rated(self):
-        # Do until being rate limited
-        while True:
-            try:
-                return self._delete_impl()
-            except SlackApiError as error:
-                if error.response["error"] == "ratelimited":
-                    # The `Retry-After` header will tell you how long to wait before retrying
-                    delay = int(error.response.headers["Retry-After"])
-                    self._slack.log.debug(f"Rate limited. Retrying in {delay} seconds")
-                    sleep(delay)
-                    continue
-                raise error
+        return self._slack.call_rate_limited(self._delete_impl)
 
     def delete(self) -> Optional[Exception]:
         """
@@ -584,7 +587,7 @@ class ASlackReaction(ABC):
         return f"{self._context}:{self.name}({self.count})"
 
     def __repr__(self):
-        return self.__str__()
+        return str(self)
 
 
 class SlackMessageReaction(ASlackReaction):
@@ -641,11 +644,6 @@ class SlackFile:
     file title
     """
 
-    user: SlackUser
-    """
-    user created this file
-    """
-
     pinned_to = False
     """
     is the file pinned
@@ -675,7 +673,6 @@ class SlackFile:
         """
         :param entry: json dict entry as returned by slack api
         :type entry: dict
-        :param user: user created this file
         :param slack: slack cleaner instance
         :type slack: SlackCleaner
         """
@@ -683,7 +680,6 @@ class SlackFile:
         self.hidden_by_limit = "hidden_by_limit" in entry
         self.name = entry.get("name", "Unknown")
         self.title = entry.get("title", "Unknown")
-        self.user = slack.resolve_user(entry["user"])
         self.pinned_to = entry.get("pinned_to", False)
         self.mimetype = entry.get("mimetype")
         self.size = entry.get("size", -1)
@@ -691,6 +687,13 @@ class SlackFile:
 
         self.json = entry
         self._slack = slack
+
+    @cached_property
+    def user(self) -> SlackUser:
+        """
+        user created this file
+        """
+        return self._slack.resolve_user(self.json["user"])
 
     @staticmethod
     def list(
@@ -734,7 +737,7 @@ class SlackFile:
         return self.name
 
     def __repr__(self):
-        return self.__str__()
+        return str(self)
 
     def _delete_rated(self):
         return self._slack.call_rate_limited(lambda: self._slack.client.files_delete(file=self.id))
@@ -957,10 +960,6 @@ class SlackCleaner:
     """
     list of known users
     """
-    myself: SlackUser
-    """
-    the calling slack user, i.e the one whose token is used
-    """
     channels: List[SlackChannel] = []
     """
     list of channels
@@ -1043,15 +1042,6 @@ class SlackCleaner:
         self.users = ByKeyLookup[SlackUser]([SlackUser(m, self) for m in raw_users], lambda v: [v.name, v.id])
         self.log.debug("collected users %s", self.users)
 
-        # determine one self
-        my_id = self.safe_api(self.client.auth_test, "user_id", None, [], "auth.test")
-        myself = next((u for u in self.users if u.id == my_id), None)
-        if not myself:
-            self.log.error("cannot determine my own user, using the first one or a dummy one")
-            self.myself = self.users[0] or self._add_dummy_user("?????")
-        else:
-            self.myself = myself
-
         raw_channels = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
         self.channels = [SlackChannel(m, SlackChannelType.PUBLIC, self) for m in raw_channels if m.get("is_channel") and not m.get("is_private")]
         self.log.debug("collected channels %s", self.channels)
@@ -1075,6 +1065,19 @@ class SlackCleaner:
         # pylint: disable=invalid-name
         self.c = ByKeyLookup[Union[SlackChannel, SlackDirectMessage]](self.conversations, lambda v: [v.name, v.id])
         # pylint: enable=invalid-name
+
+    @cached_property
+    def myself(self) -> SlackUser:
+        """
+        the calling slack user, i.e the one whose token is used
+        """
+        # determine one self
+        my_id = self.safe_api(self.client.auth_test, "user_id", None, [], "auth.test")
+        myself = self.users[my_id]
+        if not myself:
+            self.log.error("cannot determine my own user, using the first one or a dummy one")
+            return self.users[0] or self._add_dummy_user(my_id or "?????")
+        return myself
 
     def call_rate_limited(self, fun: Callable) -> Any:
         """
