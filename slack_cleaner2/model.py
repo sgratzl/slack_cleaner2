@@ -121,7 +121,6 @@ class SlackUser:
         :type before: int,str,time
         :type with_replies: boolean
         :return: generator of SlackMessage objects
-        :return: generator of SlackMessage objects
         :rtype: SlackMessage
         """
         for msg in self._slack.msgs((c for c in self._slack.conversations if self in c.members), after=after, before=before, with_replies=with_replies):
@@ -1224,7 +1223,7 @@ class SlackCleaner:
         """
         list of channel+group+mpim+ims
         """
-        return [c for c in self.c]
+        return list(self.c)
 
     @property
     def myself(self) -> SlackUser:
