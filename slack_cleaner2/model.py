@@ -270,7 +270,7 @@ class SlackChannel:
         ts = base_msg.json.get("thread_ts", base_msg.json["ts"])
         after = _parse_time(after)
         before = _parse_time(before)
-        self._slack.log.debug("list msgs of %s (after=%s, before=%s)", self, after, before)
+        self._slack.log.debug("list replies of %s (after=%s, before=%s)", base_msg, after, before)
 
         messages = self._slack.safe_paginated_api(
             lambda kw: self._slack.client.conversations_replies(channel=self.id, ts=ts, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.replies"
