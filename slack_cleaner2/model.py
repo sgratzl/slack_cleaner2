@@ -989,37 +989,59 @@ class SlackUsers:
 
     def __init__(self, slack: "SlackCleaner"):
         self._slack = slack
+        self._dummy_users: List[SlackUser] = []
+        self._lookup: Dict[str, SlackUser] = {}
+        self._loaded = False
+        self._arr: List[SlackUser] = []
 
-    @cached_property
-    def _arr(self) -> List[SlackUser]:
+    def _load(self) -> List[SlackUser]:
+        if self._loaded:
+            return self._arr
+
+        self._loaded = True
         raw_users = self._slack.safe_paginated_api(lambda kw: self._slack.client.users_list(**kw), "members", ["users:read (bot, user)"], "users.list")
-        users = [SlackUser(m, self._slack) for m in raw_users]
-        self._slack.log.debug("collected users %s", users)
-        return users
+        self._arr = [SlackUser(m, self._slack) for m in raw_users]
+        self._slack.log.debug("collected users %s", self._arr)
 
-    @cached_property
-    def _lookup(self) -> Dict[str, SlackUser]:
-        lookup: Dict[str, SlackUser] = {}
-        for v in self._arr:
-            lookup[v.id] = v
-            lookup[v.name] = v
-        return lookup
+        for user in self._arr:
+            self._lookup[user.id] = user
+            self._lookup[user.name] = user
+        return self._arr
 
-    def __contains__(self, key: Union[SlackUser, str]):
-        return key in self._lookup or key in self._arr
+    def _load_single(self, user_id: str) -> Optional[SlackUser]:
+        res = self._slack.safe_api(lambda: self._slack.client.users_info(user=user_id), 'user', None, ["users:read (bot, user)"], "users.info")
+        if res is None:
+            return None
+        user = SlackUser(res, self._slack)
+        self._slack.log.debug("collected single user %s", user)
+        self._lookup[user.id] = user
+        self._lookup[user.name] = user
+        return user
 
-    def append(self, val: SlackUser):
-        """
-        appends the given value to this list
-        """
-        self._arr.append(val)
-        self._lookup[val.id] = val
-        self._lookup[val.name] = val
+    def __contains__(self, key: Union[SlackUser, str]) -> bool:
+        if isinstance(key, SlackUser):
+            return key._slack == self._slack
+
+        if key in self._lookup:
+            return True
+        if self._loaded:
+            return False
+        user = self._load_single(key)
+        return user is not None
 
     def __getitem__(self, key: Union[str, int]) -> Optional[SlackUser]:
         if isinstance(key, int):
-            return self._arr[key] if 0 <= key < len(self._arr) else None
-        return self._lookup.get(key, None)
+            if key < 0 or key < len(self._dummy_users):
+                return self._dummy_users[key]
+            arr = self._load()
+            shifted_key = key - len(self._dummy_users)
+            return arr[shifted_key] if 0 <= shifted_key < len(arr) else None
+
+        if key in self._lookup:
+            return self._lookup.get(key, None)
+        if self._loaded:
+            return None
+        return self._load_single(key)
 
     def get(self, key: str) -> Optional[SlackUser]:
         """
@@ -1031,10 +1053,11 @@ class SlackUsers:
         return self[name]
 
     def __len__(self) -> int:
-        return len(self._arr)
+        return len(self._dummy_users) + len(self._load())
 
     def __iter__(self) -> Iterator[SlackUser]:
-        yield from self._arr
+        yield from self._dummy_users
+        yield from self._load()
 
     def __str__(self) -> str:
         return str(self._arr)
@@ -1063,15 +1086,18 @@ class SlackUsers:
         :type user_id: str
         :rtype: SlackUser
         """
-        if user_id not in self:
+        user = self.get(user_id)
+        if user is None:
             self._slack.log.error("user %s not found - generating dummy one", user_id)
             return self._add_dummy_user(user_id)
-        return cast(SlackUser, self[user_id])
+        return user
 
     def _add_dummy_user(self, user_id: str) -> SlackUser:
         entry = {"id": user_id, "name": user_id, "profile": {"real_name": user_id, "display_name": user_id, "email": None}, "is_bot": False, "is_app_user": False}
         user = SlackUser(entry, self._slack)
-        self.append(user)
+        self._dummy_users.append(user)
+        self._lookup[user.id] = user
+        self._lookup[user.name] = user
         return user
 
 
