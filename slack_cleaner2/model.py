@@ -1039,7 +1039,7 @@ class SlackCleaner:
             client = WebClient(token=token, team_id=team_id)
             self.client = client
 
-        raw_users = self.safe_api(self.client.users_list, "members", [], ["users:read (bot, user)"], "users.list")
+        raw_users = self.safe_paginated_api(lambda kw: self.client.users_list(**kw), "members", ["users:read (bot, user)"], "users.list")
         self.users = ByKeyLookup[SlackUser]([SlackUser(m, self) for m in raw_users], lambda v: [v.name, v.id])
         self.log.debug("collected users %s", self.users)
 
@@ -1091,7 +1091,7 @@ class SlackCleaner:
                 if error.response["error"] == "ratelimited":
                     # The `Retry-After` header will tell you how long to wait before retrying
                     delay = int(error.response.headers["Retry-After"])
-                    self.log.debug(f"Rate limited. Retrying in {delay} seconds")
+                    self.log.debug("Rate limited. Retrying in %s seconds", delay)
                     sleep(delay)
                     continue
                 raise error
