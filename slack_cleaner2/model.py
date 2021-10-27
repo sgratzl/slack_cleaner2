@@ -193,10 +193,9 @@ class SlackChannel:
         list of members
         """
         if self.is_archived:
-            self._slack.log.debug('cannot fetch members of archived channel %s', self.name)
+            self._slack.log.debug("cannot fetch members of archived channel %s", self.name)
             return []
-        raw_members = self._slack.safe_paginated_api(
-            lambda kw: self._slack.client.conversations_members(channel=self.id, **kw), "members")
+        raw_members = self._slack.safe_paginated_api(lambda kw: self._slack.client.conversations_members(channel=self.id, **kw), "members")
         return [self._slack.resolve_user(user) for user in raw_members]
 
     @property
@@ -204,7 +203,7 @@ class SlackChannel:
         """
         whether this channel is archived
         """
-        return self.json.get('is_archived', False)
+        return self.json.get("is_archived", False)
 
     def __str__(self):
         return self.name
@@ -238,11 +237,11 @@ class SlackChannel:
         """
         after = _parse_time(after)
         before = _parse_time(before)
-        self._slack.log.debug(
-            "list msgs of %s (after=%s, before=%s)", self, after, before)
+        self._slack.log.debug("list msgs of %s (after=%s, before=%s)", self, after, before)
 
-        messages = self._slack.safe_paginated_api(lambda kw: self._slack.client.conversations_history(
-            channel=self.id, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.history")
+        messages = self._slack.safe_paginated_api(
+            lambda kw: self._slack.client.conversations_history(channel=self.id, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.history"
+        )
 
         for msg in reversed(list(messages)) if asc else messages:
             # Delete user messages
@@ -272,11 +271,11 @@ class SlackChannel:
         ts = base_msg.json.get("thread_ts", base_msg.json["ts"])
         after = _parse_time(after)
         before = _parse_time(before)
-        self._slack.log.debug(
-            "list msgs of %s (after=%s, before=%s)", self, after, before)
+        self._slack.log.debug("list msgs of %s (after=%s, before=%s)", self, after, before)
 
-        messages = self._slack.safe_paginated_api(lambda kw: self._slack.client.conversations_replies(
-            channel=self.id, ts=ts, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.replies")
+        messages = self._slack.safe_paginated_api(
+            lambda kw: self._slack.client.conversations_replies(channel=self.id, ts=ts, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.replies"
+        )
 
         for msg in reversed(list(messages)) if asc else messages:
             # Delete user messages
@@ -414,8 +413,7 @@ class SlackMessage:
         self.pinned_to = entry.get("pinned_to", False)
         self.has_replies = entry.get("reply_count", 0) > 0
         self.thread_ts = float(entry.get("thread_ts", entry["ts"]))
-        self.files = [SlackFile(f, user if user else slack.resolve_user(
-            f["user"]), slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
+        self.files = [SlackFile(f, user if user else slack.resolve_user(f["user"]), slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
         self.is_tombstone = entry.get("subtype", None) == "tombstone"
 
     @property
@@ -427,19 +425,7 @@ class SlackMessage:
 
     def _delete_rated(self, as_user=True):
         # Do until being rate limited
-        while True:
-            try:
-                return self._slack.client.chat_delete(channel=self.channel.id,
-                                                      ts=self.json["ts"], as_user=as_user)
-            except SlackApiError as error:
-                if error.response["error"] == "ratelimited":
-                    # The `Retry-After` header will tell you how long to wait before retrying
-                    delay = int(error.response.headers["Retry-After"])
-                    self._slack.log.debug(
-                        f"Rate limited. Retrying in {delay} seconds")
-                    sleep(delay)
-                    continue
-                raise error
+        return self._slack.call_rate_limited(lambda: self._slack.client.chat_delete(channel=self.channel.id, ts=self.json["ts"], as_user=as_user))
 
     def delete(self, as_user=True, files=False, replies=False) -> Optional[Exception]:
         """
@@ -460,8 +446,7 @@ class SlackMessage:
                 self._delete_rated(as_user)
                 self._slack.post_delete(self)
             else:
-                self._slack.log.debug(
-                    "Cannot delete tombstone message - but its replies and files")
+                self._slack.log.debug("Cannot delete tombstone message - but its replies and files")
 
             if files and self.files:
                 for slack_file in self.files:
@@ -496,15 +481,23 @@ class SlackMessage:
         """
         self._slack.log.debug("list reactions of %s", self)
 
-        message = self._slack.safe_api(lambda: self._slack.client.reactions_get(
-            channel=self.channel.id, ts=self.ts, full=True,), "message", {}, ['reactions:read'], "reactions.get")
+        message = self._slack.safe_api(
+            lambda: self._slack.client.reactions_get(
+                channel=self.channel.id,
+                ts=self.ts,
+                full=True,
+            ),
+            "message",
+            {},
+            ["reactions:read"],
+            "reactions.get",
+        )
 
-        def parse_reaction(reaction: JSONDict) -> 'SlackMessageReaction':
-            users = [self._slack.resolve_user(u) for u in reaction.get('users', [])]
+        def parse_reaction(reaction: JSONDict) -> "SlackMessageReaction":
+            users = [self._slack.resolve_user(u) for u in reaction.get("users", [])]
             return SlackMessageReaction(reaction, self, users, self._slack)
 
-        return [parse_reaction(r) for r in message.get('reactions', [])]
-
+        return [parse_reaction(r) for r in message.get("reactions", [])]
 
     def __str__(self):
         user_name = "bot" if self.bot else self.user
@@ -540,7 +533,7 @@ class ASlackReaction(ABC):
     the underlying slack response as json
     """
 
-    _slack: 'SlackCleaner'
+    _slack: "SlackCleaner"
 
     def __init__(self, entry: JSONDict, users: List[SlackUser], slack: "SlackCleaner"):
         """
@@ -551,8 +544,8 @@ class ASlackReaction(ABC):
         :param slack: slack cleaner instance
         :type slack: SlackCleaner
         """
-        self.name = entry['name']
-        self.count = entry['count']
+        self.name = entry["name"]
+        self.count = entry["count"]
         self.users = users
         self.json = entry
         self._slack = slack
@@ -574,8 +567,7 @@ class ASlackReaction(ABC):
                 if error.response["error"] == "ratelimited":
                     # The `Retry-After` header will tell you how long to wait before retrying
                     delay = int(error.response.headers["Retry-After"])
-                    self._slack.log.debug(
-                        f"Rate limited. Retrying in {delay} seconds")
+                    self._slack.log.debug(f"Rate limited. Retrying in {delay} seconds")
                     sleep(delay)
                     continue
                 raise error
@@ -631,7 +623,7 @@ class SlackMessageReaction(ASlackReaction):
         return str(self.msg)
 
     def _delete_impl(self):
-        return self._slack.client.reactions_remove(self.name, channel=self.msg.channel.id, timestamp=self.msg.ts)
+        return self._slack.call_rate_limited(lambda: self._slack.client.reactions_remove(self.name, channel=self.msg.channel.id, timestamp=self.msg.ts))
 
 
 class SlackFile:
@@ -738,13 +730,12 @@ class SlackFile:
         if isinstance(channel, SlackChannel):
             channel = channel.id
 
-        slack.log.debug("list all files(user=%s, after=%s, before=%s, types=%s, channel=%s",
-                        user, after, before, types, channel)
+        slack.log.debug("list all files(user=%s, after=%s, before=%s, types=%s, channel=%s", user, after, before, types, channel)
 
         def fetch(kwargs):
             return slack.client.files_list(user=user, ts_from=after, ts_to=before, types=types, channel=channel, show_files_hidden_by_limit=True, **kwargs)
-        files = slack.safe_paginated_api(
-            fetch, "files", ["files:read"], "files.list")
+
+        files = slack.safe_paginated_api(fetch, "files", ["files:read"], "files.list")
 
         for slack_file in files:
             yield SlackFile(slack_file, slack.resolve_user(slack_file["user"]), slack)
@@ -756,19 +747,7 @@ class SlackFile:
         return self.__str__()
 
     def _delete_rated(self):
-        # Do until being rate limited
-        while True:
-            try:
-                return self._slack.client.files_delete(file=self.id)
-            except SlackApiError as error:
-                if error.response["error"] == "ratelimited":
-                    # The `Retry-After` header will tell you how long to wait before retrying
-                    delay = int(error.response.headers["Retry-After"])
-                    self._slack.log.debug(
-                        f"Rate limited. Retrying in {delay} seconds")
-                    sleep(delay)
-                    continue
-                raise error
+        return self._slack.call_rate_limited(lambda: self._slack.client.files_delete(file=self.id))
 
     def delete(self) -> Optional[Exception]:
         """
@@ -849,7 +828,6 @@ class SlackFile:
                 out.write(chunk)
         return file_name or self.name
 
-
     def reactions(self) -> List["SlackFileReaction"]:
         """
         list all reactions of this file
@@ -859,14 +837,22 @@ class SlackFile:
         """
         self._slack.log.debug("list reactions of %s", self)
 
-        wrapper = self._slack.safe_api(lambda: self._slack.client.reactions_get(
-            file=self.id, full=True,), "file", {}, ['reactions:read'], "reactions.get")
+        wrapper = self._slack.safe_api(
+            lambda: self._slack.client.reactions_get(
+                file=self.id,
+                full=True,
+            ),
+            "file",
+            {},
+            ["reactions:read"],
+            "reactions.get",
+        )
 
-        def parse_reaction(reaction: JSONDict) -> 'SlackFileReaction':
-            users = [self._slack.resolve_user(u) for u in reaction.get('users', [])]
+        def parse_reaction(reaction: JSONDict) -> "SlackFileReaction":
+            users = [self._slack.resolve_user(u) for u in reaction.get("users", [])]
             return SlackFileReaction(reaction, self, users, self._slack)
 
-        return [parse_reaction(r) for r in wrapper.get('reactions', [])]
+        return [parse_reaction(r) for r in wrapper.get("reactions", [])]
 
 
 class SlackFileReaction(ASlackReaction):
@@ -897,7 +883,7 @@ class SlackFileReaction(ASlackReaction):
         return str(self.file)
 
     def _delete_impl(self):
-        return self._slack.client.reactions_remove(name=self.name, file=self.file.id)
+        return self._slack.call_rate_limited(lambda: self._slack.client.reactions_remove(name=self.name, file=self.file.id))
 
 
 def _parse_time(time_str: TimeIsh) -> Optional[float]:
@@ -1021,8 +1007,17 @@ class SlackCleaner:
     number of elements fetched per page
     """
 
-    def __init__(self, token: Union[str, WebClient], sleep_for=0, log_to_file=False, client: Optional[WebClient] = None,
-                 logger: Optional[Logger] = None, show_progress=True, page_limit=200, team_id: Optional[str]=None):
+    def __init__(
+        self,
+        token: Union[str, WebClient],
+        sleep_for=0,
+        log_to_file=False,
+        client: Optional[WebClient] = None,
+        logger: Optional[Logger] = None,
+        show_progress=True,
+        page_limit=200,
+        team_id: Optional[str] = None,
+    ):
         """
         :param token: the slack token, see README.md for details
         :type token: str
@@ -1042,10 +1037,9 @@ class SlackCleaner:
         :type page_limit: int
         """
 
-        self.log = SlackLogger(log_to_file, logger=logger,
-                               show_progress=show_progress)
+        self.log = SlackLogger(log_to_file, logger=logger, show_progress=show_progress)
         self.sleep_for = sleep_for
-        self.token = token if isinstance(token, str) else 'unknown'
+        self.token = token if isinstance(token, str) else "unknown"
         self.page_limit = page_limit
 
         self.log.debug("start")
@@ -1058,45 +1052,33 @@ class SlackCleaner:
             client = WebClient(token=token, team_id=team_id)
             self.client = client
 
-        raw_users = self.safe_api(self.client.users_list, "members", [], [
-                                  "users:read (bot, user)"], "users.list")
-        self.users = ByKeyLookup[SlackUser](
-            [SlackUser(m, self) for m in raw_users], lambda v: [v.name, v.id])
+        raw_users = self.safe_api(self.client.users_list, "members", [], ["users:read (bot, user)"], "users.list")
+        self.users = ByKeyLookup[SlackUser]([SlackUser(m, self) for m in raw_users], lambda v: [v.name, v.id])
         self.log.debug("collected users %s", self.users)
 
         # determine one self
-        my_id = self.safe_api(self.client.auth_test,
-                              "user_id", None, [], "auth.test")
+        my_id = self.safe_api(self.client.auth_test, "user_id", None, [], "auth.test")
         myself = next((u for u in self.users if u.id == my_id), None)
         if not myself:
-            self.log.error(
-                "cannot determine my own user, using the first one or a dummy one")
+            self.log.error("cannot determine my own user, using the first one or a dummy one")
             self.myself = self.users[0] or self._add_dummy_user("?????")
         else:
             self.myself = myself
 
-        raw_channels = self.safe_paginated_api(lambda kw: self.client.conversations_list(
-            types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
-        self.channels = [SlackChannel(m, SlackChannelType.PUBLIC, self)
-                         for m in raw_channels if m.get("is_channel") and not m.get("is_private")]
+        raw_channels = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
+        self.channels = [SlackChannel(m, SlackChannelType.PUBLIC, self) for m in raw_channels if m.get("is_channel") and not m.get("is_private")]
         self.log.debug("collected channels %s", self.channels)
 
-        raw_groups = self.safe_paginated_api(lambda kw: self.client.conversations_list(
-            types="private_channel", **kw), "channels", ["groups:read"], "conversations.list (private_channel)")
-        self.groups = [
-            SlackChannel(m, SlackChannelType.PRIVATE, self) for m in raw_groups if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")
-        ]
+        raw_groups = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="private_channel", **kw), "channels", ["groups:read"], "conversations.list (private_channel)")
+        self.groups = [SlackChannel(m, SlackChannelType.PRIVATE, self) for m in raw_groups if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")]
         self.log.debug("collected groups %s", self.groups)
 
-        raw_mpim = self.safe_paginated_api(lambda kw: self.client.conversations_list(
-            types="mpim", **kw), "channels", ["mpim:read"], "conversations.list (mpim)")
+        raw_mpim = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="mpim", **kw), "channels", ["mpim:read"], "conversations.list (mpim)")
         self.mpim = [SlackChannel(m, SlackChannelType.MPIM, self) for m in raw_mpim if m.get("is_mpim")]
         self.log.debug("collected mpim %s", self.mpim)
 
-        raw_ims = self.safe_paginated_api(lambda kw: self.client.conversations_list(
-            types="im", **kw), "channels", ["im:read"], "conversations.list (im)")
-        self.ims = [SlackDirectMessage(m, self.resolve_user(
-            m["user"]), self) for m in raw_ims if m.get("is_im")]
+        raw_ims = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="im", **kw), "channels", ["im:read"], "conversations.list (im)")
+        self.ims = [SlackDirectMessage(m, self.resolve_user(m["user"]), self) for m in raw_ims if m.get("is_im")]
         self.log.debug("collected ims %s", self.ims)
 
         # al different types with a similar interface
@@ -1104,16 +1086,35 @@ class SlackCleaner:
         self.conversations.extend(self.ims)
 
         # pylint: disable=invalid-name
-        self.c = ByKeyLookup[Union[SlackChannel, SlackDirectMessage]](
-            self.conversations, lambda v: [v.name, v.id])
+        self.c = ByKeyLookup[Union[SlackChannel, SlackDirectMessage]](self.conversations, lambda v: [v.name, v.id])
         # pylint: enable=invalid-name
+
+    def call_rate_limited(self, fun: Callable) -> Any:
+        """
+        call slack api with rate handling
+
+        :param fun: function to call
+        :type fun: Callable
+        """
+        # Do until being rate limited
+        while True:
+            try:
+                return fun()
+            except SlackApiError as error:
+                if error.response["error"] == "ratelimited":
+                    # The `Retry-After` header will tell you how long to wait before retrying
+                    delay = int(error.response.headers["Retry-After"])
+                    self.log.debug(f"Rate limited. Retrying in {delay} seconds")
+                    sleep(delay)
+                    continue
+                raise error
 
     def safe_api(self, fun: Callable, attr: Union[str, Sequence[str]], default_value=None, scopes: Optional[List[str]] = None, method: Optional[str] = None) -> Any:
         """
         wrapper for handling common errors
 
         :param fun: function to call
-        :type user_id: Callable
+        :type fun: Callable
         :param attr: attribute name in the body to return
         :type attr: str
         :param default_value: default value in case of an error
@@ -1125,7 +1126,7 @@ class SlackCleaner:
         scopes = scopes or []
         method = method or str(fun)
         try:
-            res = fun()
+            res = self.call_rate_limited(fun)
             if not res["ok"]:
                 self.log.warning("%s: unknown occurred %s", method, res)
                 return default_value
@@ -1133,10 +1134,9 @@ class SlackCleaner:
                 return tuple(res.get(a) for a in attr)
             return res.get(attr, default_value)
         except SlackApiError as error:
-            if error.response['error'] == "missing_scope" and scopes:
-                self.log.warning("%s: missing scope error: %s is missing", method,
-                                 f"one of '{scopes}'" if len(scopes) != 1 else scopes[0])
-            elif error.response['error'] == "fetch_members_failed":
+            if error.response["error"] == "missing_scope" and scopes:
+                self.log.warning("%s: missing scope error: %s is missing", method, f"one of '{scopes}'" if len(scopes) != 1 else scopes[0])
+            elif error.response["error"] == "fetch_members_failed":
                 self.log.debug("%s: fetch_members_failed: is it an archived channel?", method)
             else:
                 self.log.error("%s: unknown error occurred: %s", method, error)
@@ -1165,8 +1165,7 @@ class SlackCleaner:
             return fun(dict(cursor=next_cursor, limit=limit))
 
         while True:
-            page, meta = self.safe_api(list_page, [attr, "response_metadata"], [
-                                       [], {}], scopes, method)
+            page, meta = self.safe_api(list_page, [attr, "response_metadata"], [[], {}], scopes, method)
             for elem in page:
                 yield elem
             if not meta or not meta.get("next_cursor"):
@@ -1187,8 +1186,7 @@ class SlackCleaner:
         return cast(SlackUser, self.users[user_id])
 
     def _add_dummy_user(self, user_id: str):
-        entry = {"id": user_id, "name": user_id, "profile": {"real_name": user_id,
-                                                             "display_name": user_id, "email": None}, "is_bot": False, "is_app_user": False}
+        entry = {"id": user_id, "name": user_id, "profile": {"real_name": user_id, "display_name": user_id, "email": None}, "is_bot": False, "is_app_user": False}
         user = SlackUser(entry, self)
         self.users.append(user)
         return user
@@ -1202,7 +1200,7 @@ class SlackCleaner:
         """
         self.log.deleted(error)
 
-        ctx = ''
+        ctx = ""
         if isinstance(obj, SlackMessage):
             ctx = "chat:write"
         elif isinstance(obj, SlackFile):
@@ -1211,12 +1209,10 @@ class SlackCleaner:
             ctx = "reactions:write"
 
         if error:
-            if error.response['error'] == "missing_scope":
-                self.log.warning("cannot delete entry: %s: missing '%s' scope", obj,
-                                 ctx)
+            if error.response["error"] == "missing_scope":
+                self.log.warning("cannot delete entry: %s: missing '%s' scope", obj, ctx)
             else:
-                self.log.warning("cannot delete entry: %s: %s",
-                                 obj, error.response['error'])
+                self.log.warning("cannot delete entry: %s: %s", obj, error.response["error"])
         else:
             self.log.debug("deleted entry: %s", obj)
 
@@ -1227,38 +1223,38 @@ class SlackCleaner:
         self, user: Union[str, SlackUser, None] = None, after: TimeIsh = None, before: TimeIsh = None, types: Optional[str] = None, channel: Union[str, SlackChannel, None] = None
     ) -> Iterator[SlackFile]:
         """
-    list all known slack files for the given parameter as a generator
+        list all known slack files for the given parameter as a generator
 
-    :param user: limit to given user
-    :type user: str,SlackUser
-    :param after: limit to entries after the given timestamp
-    :type after: int,str,time
-    :param before: limit to entries before the given timestamp
-    :type before: int,str,time
-    :param types: see slack api, one or multiple of all,spaces,snippets,images,gdocs,zips,pdfs
-    :type types: str
-    :param channel: limit to a certain channel
-    :type channel: str,SlackChannel
-    :return: generator of SlackFile objects
-    :rtype: SlackFile
-    """
+        :param user: limit to given user
+        :type user: str,SlackUser
+        :param after: limit to entries after the given timestamp
+        :type after: int,str,time
+        :param before: limit to entries before the given timestamp
+        :type before: int,str,time
+        :param types: see slack api, one or multiple of all,spaces,snippets,images,gdocs,zips,pdfs
+        :type types: str
+        :param channel: limit to a certain channel
+        :type channel: str,SlackChannel
+        :return: generator of SlackFile objects
+        :rtype: SlackFile
+        """
         return SlackFile.list(self, user=user, after=after, before=before, types=types, channel=channel)
 
     def msgs(self, channels: Optional[Iterable[SlackChannel]] = None, after: TimeIsh = None, before: TimeIsh = None, with_replies=False) -> Iterator[SlackMessage]:
         """
-    list all known slack messages for the given parameter as a generator
+        list all known slack messages for the given parameter as a generator
 
-    :param channels: limit to given channels by default of all conversations
-    :type channels: iterable of SlackChannel
-    :param after: limit to entries after the given timestamp
-    :type after: int,str,time
-    :param before: limit to entries before the given timestamp
-    :type before: int,str,time
-    :type with_replies: boolean
-    :return: generator of SlackMessage objects
-    :return: generator of SlackMessage objects
-    :rtype: SlackMessage
-    """
+        :param channels: limit to given channels by default of all conversations
+        :type channels: iterable of SlackChannel
+        :param after: limit to entries after the given timestamp
+        :type after: int,str,time
+        :param before: limit to entries before the given timestamp
+        :type before: int,str,time
+        :type with_replies: boolean
+        :return: generator of SlackMessage objects
+        :return: generator of SlackMessage objects
+        :rtype: SlackMessage
+        """
         if not channels:
             channels = self.conversations
         for channel in channels:
