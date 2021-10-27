@@ -943,14 +943,104 @@ class ByKeyLookup(Generic[ByKey]):
         return repr(self._arr)
 
 
-class SlackUsers(ByKeyLookup[SlackUser]):
+class SlackChannels:
+    """
+    slack channels
+    """
+
+    def __init__(self, slack: 'SlackCleaner'):
+        self._slack = slack
+
+    def get(self, key: str) -> Optional[SlackChannel]:
+        """
+        similar to dict.get method
+        """
+        return self[key]
+
+    def __contains__(self, key: Union[SlackChannel, SlackDirectMessage, str]):
+        return key in self._slack.channels or key in self._slack.groups or key in self._slack.mpim or cast(Union[SlackDirectMessage, str], key) in self._slack.ims
+
+    def __getitem__(self, key: Union[str, int]) -> Optional[SlackChannel]:
+        return self._slack.channels[key] or self._slack.groups[key] or self._slack.mpim[key] or self._slack.ims[key]
+
+    def __getattr__(self, name: str) -> Optional[SlackChannel]:
+        return self[name]
+
+    def __len__(self) -> int:
+        return len(self._slack.channels) + len(self._slack.groups) + len(self._slack.mpim) + len(self._slack.ims)
+
+    def __iter__(self) -> Iterator[SlackChannel]:
+        yield from self._slack.channels
+        yield from self._slack.groups
+        yield from self._slack.mpim
+        yield from self._slack.ims
+
+    def __str__(self) -> str:
+        return str(list(self))
+
+    def __repr__(self):
+        return repr(list(self))
+
+
+class SlackUsers:
     """
     helper for managing slack users
     """
 
-    def __init__(self, arr: List[SlackUser], slack: "SlackCleaner"):
-        super().__init__(arr, lambda v: [v.name, v.id])
+    def __init__(self, slack: "SlackCleaner"):
         self._slack = slack
+
+    @cached_property
+    def _arr(self) -> List[SlackUser]:
+        raw_users = self._slack.safe_paginated_api(lambda kw: self._slack.client.users_list(**kw), "members", ["users:read (bot, user)"], "users.list")
+        users = [SlackUser(m, self._slack) for m in raw_users]
+        self._slack.log.debug("collected users %s", users)
+        return users
+
+    @cached_property
+    def _lookup(self) -> Dict[str, SlackUser]:
+        lookup: Dict[str, SlackUser] = {}
+        for v in self._arr:
+            lookup[v.id] = v
+            lookup[v.name] = v
+        return lookup
+
+    def __contains__(self, key: Union[SlackUser, str]):
+        return key in self._lookup or key in self._arr
+
+    def append(self, val: SlackUser):
+        """
+        appends the given value to this list
+        """
+        self._arr.append(val)
+        self._lookup[val.id] = val
+        self._lookup[val.name] = val
+
+    def __getitem__(self, key: Union[str, int]) -> Optional[SlackUser]:
+        if isinstance(key, int):
+            return self._arr[key] if 0 <= key < len(self._arr) else None
+        return self._lookup.get(key, None)
+
+    def get(self, key: str) -> Optional[SlackUser]:
+        """
+        similar to dict.get method
+        """
+        return self[key]
+
+    def __getattr__(self, name: str) -> Optional[SlackUser]:
+        return self[name]
+
+    def __len__(self) -> int:
+        return len(self._arr)
+
+    def __iter__(self) -> Iterator[SlackUser]:
+        yield from self._arr
+
+    def __str__(self) -> str:
+        return str(self._arr)
+
+    def __repr__(self):
+        return repr(self._arr)
 
     @cached_property
     def myself(self) -> SlackUser:
@@ -1006,6 +1096,14 @@ class SlackCleaner:
     """
     number of elements fetched per page
     """
+    users: SlackUsers
+    """
+    slack users
+    """
+    c: SlackChannels
+    """
+    alias of .conversations with advanced accessors
+    """
 
     def __init__(
         self,
@@ -1052,67 +1150,48 @@ class SlackCleaner:
             client = WebClient(token=token, team_id=team_id)
             self.client = client
 
-    @cached_property
-    def users(self) -> SlackUsers:
-        """
-        list of known users
-        """
-        raw_users = self.safe_paginated_api(lambda kw: self.client.users_list(**kw), "members", ["users:read (bot, user)"], "users.list")
-        users = SlackUsers([SlackUser(m, self) for m in raw_users], self)
-        self.log.debug("collected users %s", users)
-        return users
+        self.users = SlackUsers(self)
+        self.c = SlackChannels(self)  # pylint: disable=invalid-name
 
     @cached_property
-    def channels(self) -> List[SlackChannel]:
+    def channels(self) -> ByKeyLookup[SlackChannel]:
         """
         list of channels
         """
         raw_channels = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
         channels = [SlackChannel(m, SlackChannelType.PUBLIC, self) for m in raw_channels if m.get("is_channel") and not m.get("is_private")]
         self.log.debug("collected channels %s", channels)
-        return channels
+        return ByKeyLookup(channels,lambda v: [v.name, v.id])
 
     @cached_property
-    def groups(self) -> List[SlackChannel]:
+    def groups(self) -> ByKeyLookup[SlackChannel]:
         """
         list of groups aka private channels
         """
         raw_groups = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="private_channel", **kw), "channels", ["groups:read"], "conversations.list (private_channel)")
         groups = [SlackChannel(m, SlackChannelType.PRIVATE, self) for m in raw_groups if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")]
         self.log.debug("collected groups %s", groups)
-        return groups
+        return ByKeyLookup(groups,lambda v: [v.name, v.id])
 
     @cached_property
-    def mpim(self) -> List[SlackChannel]:
+    def mpim(self) -> ByKeyLookup[SlackChannel]:
         """
         list of multi person instant message channels
         """
         raw_mpim = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="mpim", **kw), "channels", ["mpim:read"], "conversations.list (mpim)")
         mpim = [SlackChannel(m, SlackChannelType.MPIM, self) for m in raw_mpim if m.get("is_mpim")]
         self.log.debug("collected mpim %s", mpim)
-        return mpim
+        return ByKeyLookup(mpim,lambda v: [v.name, v.id])
 
     @cached_property
-    def ims(self) -> List[SlackDirectMessage]:
+    def ims(self) -> ByKeyLookup[SlackDirectMessage]:
         """
         list of instant messages = direct messages
         """
         raw_ims = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="im", **kw), "channels", ["im:read"], "conversations.list (im)")
         ims = [SlackDirectMessage(m, self) for m in raw_ims if m.get("is_im")]
         self.log.debug("collected ims %s", ims)
-        return ims
-
-    @cached_property
-    def c(self) -> ByKeyLookup[SlackChannel]:  # pylint: disable=invalid-name
-        """
-        alias of .conversations with advanced accessors
-        """
-        all_conversations = self.channels + self.groups + self.mpim
-        all_conversations.extend(self.ims)
-
-        conversations = ByKeyLookup[Union[SlackChannel, SlackDirectMessage]](all_conversations, lambda v: [v.name, v.id])
-        # pylint: enable=invalid-name
-        return conversations
+        return ByKeyLookup(ims, lambda v: [v.name, v.id])
 
     @cached_property
     def conversations(self) -> List[Union[SlackChannel, SlackDirectMessage]]:
