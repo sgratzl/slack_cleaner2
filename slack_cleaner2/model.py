@@ -1319,7 +1319,7 @@ class SlackCleaner:
                 break
             next_page = current + 1
 
-    def safe_paginated_api(self, fun: Callable, attr: str, scopes: Optional[List[str]] = None, method: Optional[str] = None, cursor_mode = True) -> Any:
+    def safe_paginated_api(self, fun: Callable, attr: str, scopes: Optional[List[str]] = None, method: Optional[str] = None) -> Any:
         """
         wrapper for iterating over a paginated cursor result
 
