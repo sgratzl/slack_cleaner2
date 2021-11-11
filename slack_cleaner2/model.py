@@ -727,7 +727,7 @@ class SlackFile:
         def fetch(kwargs):
             return slack.client.files_list(user=user, ts_from=after, ts_to=before, types=types, channel=channel, show_files_hidden_by_limit=True, **kwargs)
 
-        files = slack.safe_paginated_api(fetch, "files", ["files:read"], "files.list")
+        files = slack.safe_paging_api(fetch, "files", ["files:read"], "files.list")
 
         for slack_file in files:
             yield SlackFile(slack_file, slack)
@@ -947,7 +947,7 @@ class SlackChannels:
     slack channels
     """
 
-    def __init__(self, slack: 'SlackCleaner'):
+    def __init__(self, slack: "SlackCleaner"):
         self._slack = slack
 
     def get(self, key: str) -> Optional[SlackChannel]:
@@ -1008,7 +1008,7 @@ class SlackUsers:
         return self._arr
 
     def _load_single(self, user_id: str) -> Optional[SlackUser]:
-        res = self._slack.safe_api(lambda: self._slack.client.users_info(user=user_id), 'user', None, ["users:read (bot, user)"], "users.info")
+        res = self._slack.safe_api(lambda: self._slack.client.users_info(user=user_id), "user", None, ["users:read (bot, user)"], "users.info")
         if res is None:
             return None
         user = SlackUser(res, self._slack)
@@ -1186,7 +1186,7 @@ class SlackCleaner:
         raw_channels = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="public_channel", **kw), "channels", ["channels:read"], "conversations.list (public_channel)")
         channels = [SlackChannel(m, SlackChannelType.PUBLIC, self) for m in raw_channels if m.get("is_channel") and not m.get("is_private")]
         self.log.debug("collected channels %s", channels)
-        return ByKeyLookup(channels,lambda v: [v.name, v.id])
+        return ByKeyLookup(channels, lambda v: [v.name, v.id])
 
     @cached_property
     def groups(self) -> ByKeyLookup[SlackChannel]:
@@ -1196,7 +1196,7 @@ class SlackCleaner:
         raw_groups = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="private_channel", **kw), "channels", ["groups:read"], "conversations.list (private_channel)")
         groups = [SlackChannel(m, SlackChannelType.PRIVATE, self) for m in raw_groups if (m.get("is_channel") or m.get("is_group")) and m.get("is_private")]
         self.log.debug("collected groups %s", groups)
-        return ByKeyLookup(groups,lambda v: [v.name, v.id])
+        return ByKeyLookup(groups, lambda v: [v.name, v.id])
 
     @cached_property
     def mpim(self) -> ByKeyLookup[SlackChannel]:
@@ -1206,7 +1206,7 @@ class SlackCleaner:
         raw_mpim = self.safe_paginated_api(lambda kw: self.client.conversations_list(types="mpim", **kw), "channels", ["mpim:read"], "conversations.list (mpim)")
         mpim = [SlackChannel(m, SlackChannelType.MPIM, self) for m in raw_mpim if m.get("is_mpim")]
         self.log.debug("collected mpim %s", mpim)
-        return ByKeyLookup(mpim,lambda v: [v.name, v.id])
+        return ByKeyLookup(mpim, lambda v: [v.name, v.id])
 
     @cached_property
     def ims(self) -> ByKeyLookup[SlackDirectMessage]:
@@ -1285,9 +1285,43 @@ class SlackCleaner:
                 self.log.error("%s: unknown error occurred: %s", method, error)
             return default_value
 
-    def safe_paginated_api(self, fun: Callable, attr: str, scopes: Optional[List[str]] = None, method: Optional[str] = None) -> Any:
+    def safe_paging_api(self, fun: Callable, attr: str, scopes: Optional[List[str]] = None, method: Optional[str] = None) -> Any:
         """
-        wrapper for iterating over a paginated result
+        wrapper for iterating over a paginated page result
+
+        :param fun: function to call the key-word arguments given should be forwarded
+        :type user_id: Callable
+        :param attr: attribute name in the body to return
+        :type attr: str
+        :param method: method hint name
+        :type method: str
+        :param scopes: list of scopes hint
+        :type scopes: List[str]
+        """
+        limit = self.page_limit
+        next_page = None
+
+        def list_paging_page():
+            if not next_page:
+                # initial call
+                return fun(dict(count=limit))
+            return fun(dict(page=next_page, count=limit))
+
+        while True:
+            page, meta = self.safe_api(list_paging_page, [attr, "paging"], [[], {}], scopes, method)
+            for elem in page:
+                yield elem
+            if not meta:
+                return
+            total = meta.get('total', 1)
+            current = meta.get('page', 1)
+            if current >= total:
+                break
+            next_page = current + 1
+
+    def safe_paginated_api(self, fun: Callable, attr: str, scopes: Optional[List[str]] = None, method: Optional[str] = None, cursor_mode = True) -> Any:
+        """
+        wrapper for iterating over a paginated cursor result
 
         :param fun: function to call the key-word arguments given should be forwarded
         :type user_id: Callable
@@ -1301,14 +1335,14 @@ class SlackCleaner:
         limit = self.page_limit
         next_cursor = None
 
-        def list_page():
+        def list_cursor_page():
             if not next_cursor:
                 # initial call
                 return fun(dict(limit=limit))
             return fun(dict(cursor=next_cursor, limit=limit))
 
         while True:
-            page, meta = self.safe_api(list_page, [attr, "response_metadata"], [[], {}], scopes, method)
+            page, meta = self.safe_api(list_cursor_page, [attr, "response_metadata"], [[], {}], scopes, method)
             for elem in page:
                 yield elem
             if not meta or not meta.get("next_cursor"):
