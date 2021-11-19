@@ -124,7 +124,7 @@ Admin](https://get.slack.help/hc/en-us/articles/218124397-Change-a-member-s-role
 There is no direct docker file available, however since it is a python module one can easily create one:
 
 ```
-FROM python:3.7-alpine
+FROM python:3.9-alpine
 
 LABEL maintainer="Samuel Gratzl <sam@sgratzl.com>"
 
