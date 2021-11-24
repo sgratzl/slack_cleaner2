@@ -7,7 +7,7 @@ import logging
 import sys
 from typing import Union, Optional
 
-from colorama import Fore, init
+from colorama import Fore, init  # type: ignore
 
 
 # init colors for Powershell

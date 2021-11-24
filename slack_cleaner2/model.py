@@ -235,12 +235,12 @@ class SlackChannel:
         :return: generator of SlackMessage objects
         :rtype: SlackMessage
         """
-        after = _parse_time(after)
-        before = _parse_time(before)
-        self._slack.log.debug("list msgs of %s (after=%s, before=%s)", self, after, before)
+        after_time = _parse_time(after)
+        before_time = _parse_time(before)
+        self._slack.log.debug("list msgs of %s (after=%s, before=%s)", self, after_time, before_time)
 
         messages = self._slack.safe_paginated_api(
-            lambda kw: self._slack.client.conversations_history(channel=self.id, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.history"
+            lambda kw: self._slack.client.conversations_history(channel=self.id, latest=before_time, oldest=after_time, **kw), "messages", [self._scope()], "conversations.history"
         )
 
         for msg in reversed(list(messages)) if asc else messages:
@@ -250,7 +250,7 @@ class SlackChannel:
                 yield s_msg
 
                 if with_replies and s_msg.has_replies:
-                    yield from self.replies_to(s_msg, after=after, before=before, asc=asc)
+                    yield from self.replies_to(s_msg, after=after_time, before=before_time, asc=asc)
 
     def replies_to(self, base_msg: "SlackMessage", after: TimeIsh = None, before: TimeIsh = None, asc=False) -> Iterator["SlackMessage"]:
         """
@@ -268,12 +268,12 @@ class SlackChannel:
         :rtype: SlackMessage
         """
         ts = base_msg.json.get("thread_ts", base_msg.json["ts"])
-        after = _parse_time(after)
-        before = _parse_time(before)
-        self._slack.log.debug("list replies of %s (after=%s, before=%s)", base_msg, after, before)
+        after_time = _parse_time(after)
+        before_time = _parse_time(before)
+        self._slack.log.debug("list replies of %s (after=%s, before=%s)", base_msg, after_time, before_time)
 
         messages = self._slack.safe_paginated_api(
-            lambda kw: self._slack.client.conversations_replies(channel=self.id, ts=ts, latest=before, oldest=after, **kw), "messages", [self._scope()], "conversations.replies"
+            lambda kw: self._slack.client.conversations_replies(channel=self.id, ts=ts, latest=before_time, oldest=after_time, **kw), "messages", [self._scope()], "conversations.replies"
         )
 
         for msg in reversed(list(messages)) if asc else messages:
@@ -875,15 +875,15 @@ class SlackFileReaction(ASlackReaction):
         return self._slack.call_rate_limited(lambda: self._slack.client.reactions_remove(name=self.name, file=self.file.id))
 
 
-def _parse_time(time_str: TimeIsh) -> Optional[float]:
+def _parse_time(time_str: TimeIsh) -> Optional[str]:
     if time_str is None:
         return None
     if isinstance(time_str, (int, float)):
-        return int(time_str)
+        return str(time_str)
     try:
         if len(time_str) == 8:
-            return time.mktime(time.strptime(time_str, "%Y%m%d"))
-        return time.mktime(time.strptime(time_str, "%Y%m%d%H%M"))
+            return str(time.mktime(time.strptime(time_str, "%Y%m%d")))
+        return str(time.mktime(time.strptime(time_str, "%Y%m%d%H%M")))
     except ValueError:
         return None
 
@@ -1313,8 +1313,8 @@ class SlackCleaner:
                 yield elem
             if not meta:
                 return
-            total = meta.get('total', 1)
-            current = meta.get('page', 1)
+            total = meta.get("total", 1)
+            current = meta.get("page", 1)
             if current >= total:
                 break
             next_page = current + 1
