@@ -5,25 +5,22 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, 3.10]
     steps:
     - uses: actions/checkout@v1
-    - name: Set up Python 3.9
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
-        python-version: 3.9
+        python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         pip install pipenv
         pipenv install --dev --skip-lock
-    # - name: tox py37
-    #   run: |
-    #     pipenv run tox -e py37
-    - name: tox py39
-      run: |
-        pipenv run tox -e py39
-    - name: tox lint
-      run: |
-        pipenv run tox -e lint
-    - name: tox format
-      run: |
-        pipenv run tox -e format
+    - name: lint
+      run: invoke lint
+    - name: format
+      run: invoke format --check
+    - name: test
+      run: invoke test
