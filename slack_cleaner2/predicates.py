@@ -39,16 +39,16 @@ class AndPredicate(Predicate):
     """
 
     def __init__(self, children: Optional[List[PredicateFun]] = None):
-        super().__init__(self.call_impl)
+        super().__init__(self._call_impl)
         self.children = children or []
 
-    def call_impl(self, obj: Any) -> bool:
+    def _call_impl(self, obj: Any) -> bool:
         if not self.children:
             return True
         return all(f(obj) for f in self.children)
 
     def __call__(self, obj: Any) -> bool:
-        return self.call_impl(obj)
+        return self._call_impl(obj)
 
     def __and__(self, other: PredicateFun) -> "Predicate":
         if isinstance(other, AndPredicate):
@@ -79,16 +79,16 @@ class OrPredicate(Predicate):
     """
 
     def __init__(self, children: Optional[List[PredicateFun]] = None):
-        super().__init__(self.call_impl)
+        super().__init__(self._call_impl)
         self.children = children or []
 
-    def call_impl(self, obj: Any) -> bool:
+    def _call_impl(self, obj: Any) -> bool:
         if not self.children:
             return False
         return any(f(obj) for f in self.children)
 
     def __call__(self, obj: Any) -> bool:
-        return self.call_impl(obj)
+        return self._call_impl(obj)
 
     def __or__(self, other: PredicateFun) -> "Predicate":
         if isinstance(other, OrPredicate):
