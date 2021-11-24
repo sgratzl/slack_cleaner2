@@ -1,5 +1,5 @@
 
 [tool.black]
 line-length = 200
-target-version = ['py37']
-include = 'slack_cleaner2'
+target-version = ['py39']
+include = ['slack_cleaner2','setup.py','example','tests']

@@ -4,7 +4,7 @@
 """
 import argparse
 from typing import Any, Callable, Dict, List
-from colorama import Fore
+from colorama import Fore  # type: ignore
 
 from .predicates import match_user, match, is_name, and_, by_user, match_text, is_not_pinned, is_bot
 from .model import SlackCleaner, SlackChannel

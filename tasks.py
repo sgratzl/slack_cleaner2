@@ -20,7 +20,8 @@ import webbrowser
 ROOT_DIR = Path(__file__).parent
 SETUP_FILE = ROOT_DIR.joinpath("setup.py")
 TEST_DIR = ROOT_DIR.joinpath("tests")
-SOURCE_DIR = ROOT_DIR.joinpath("slack_cleaner2")
+MODULE_NAME = "slack_cleaner2"
+SOURCE_DIR = ROOT_DIR.joinpath(MODULE_NAME)
 TOX_DIR = ROOT_DIR.joinpath(".tox")
 COVERAGE_FILE = ROOT_DIR.joinpath(".coverage")
 COVERAGE_DIR = ROOT_DIR.joinpath("htmlcov")
@@ -50,7 +51,17 @@ def format(c, check=False):
     python_dirs_string = " ".join(PYTHON_DIRS)
     # Run yapf
     black_options = "--config pyproject.toml"
+    if check:
+        black_options += " --check"
     c.run("black {} {}".format(black_options, python_dirs_string))
+
+
+@task
+def mypy(c):
+    """
+    MyPy code
+    """
+    c.run("mypy -p {}".format(MODULE_NAME))
 
 
 @task

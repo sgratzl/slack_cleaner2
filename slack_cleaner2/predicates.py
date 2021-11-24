@@ -9,34 +9,59 @@ from typing import Optional, Iterable, List, Any, Callable
 from .model import SlackUser
 
 
-PreciateFun = Callable[[Any], bool]
+PredicateFun = Callable[[Any], bool]
 
 
-class AndPredicate:
+class Predicate:
+    """
+    helper predicate wrapper for having operator support
+    """
+
+    def __init__(self, fun: PredicateFun):
+        """
+        :param fun: function to evaluate
+        """
+        self.fun = fun
+
+    def __call__(self, obj: Any) -> bool:
+        return self.fun(obj)
+
+    def __and__(self, other: PredicateFun) -> "Predicate":
+        return AndPredicate([self.fun, other])
+
+    def __or__(self, other: PredicateFun) -> "Predicate":
+        return OrPredicate([self.fun, other])
+
+
+class AndPredicate(Predicate):
     """
     common and predicate
     """
 
-    def __init__(self, children: Optional[List[PreciateFun]] = None):
+    def __init__(self, children: Optional[List[PredicateFun]] = None):
+        super().__init__(self.call_impl)
         self.children = children or []
 
-    def __call__(self, obj: Any) -> bool:
+    def call_impl(self, obj: Any) -> bool:
         if not self.children:
             return True
         return all(f(obj) for f in self.children)
 
-    def __and__(self, other: PreciateFun) -> "Predicate":
+    def __call__(self, obj: Any) -> bool:
+        return self.call_impl(obj)
+
+    def __and__(self, other: PredicateFun) -> "Predicate":
         if isinstance(other, AndPredicate):
             self.children = self.children + other.children
             return self
         self.children.append(other)
         return self
 
-    def __or__(self, other: PreciateFun) -> "Predicate":
+    def __or__(self, other: PredicateFun) -> "Predicate":
         return OrPredicate([self, other])
 
 
-def and_(predicates: List[PreciateFun]) -> "Predicate":
+def and_(predicates: List[PredicateFun]) -> "Predicate":
     """
     combines multiple predicates using a logical and
 
@@ -48,52 +73,35 @@ def and_(predicates: List[PreciateFun]) -> "Predicate":
     return AndPredicate(predicates)
 
 
-class OrPredicate:
+class OrPredicate(Predicate):
     """
     common or predicate
     """
 
-    def __init__(self, children: Optional[List[PreciateFun]] = None):
+    def __init__(self, children: Optional[List[PredicateFun]] = None):
+        super().__init__(self.call_impl)
         self.children = children or []
 
-    def __call__(self, obj: Any) -> bool:
+    def call_impl(self, obj: Any) -> bool:
         if not self.children:
             return False
         return any(f(obj) for f in self.children)
 
-    def __or__(self, other: PreciateFun) -> "Predicate":
+    def __call__(self, obj: Any) -> bool:
+        return self.call_impl(obj)
+
+    def __or__(self, other: PredicateFun) -> "Predicate":
         if isinstance(other, OrPredicate):
             self.children = self.children + other.children
             return self
         self.children.append(other)
         return self
 
-    def __and__(self, other: PreciateFun) -> "Predicate":
+    def __and__(self, other: PredicateFun) -> "Predicate":
         return AndPredicate([self, other])
 
 
-class Predicate:
-    """
-    helper predicate wrapper for having operator support
-    """
-
-    def __init__(self, fun: PreciateFun):
-        """
-        :param fun: function to evaluate
-        """
-        self.fun = fun
-
-    def __call__(self, obj: Any) -> bool:
-        return self.fun(obj)
-
-    def __and__(self, other: PreciateFun) -> "Predicate":
-        return AndPredicate([self.fun, other])
-
-    def __or__(self, other: PreciateFun) -> "Predicate":
-        return OrPredicate([self.fun, other])
-
-
-def or_(predicates: List[PreciateFun]) -> Predicate:
+def or_(predicates: List[PredicateFun]) -> Predicate:
     """
     combines multiple predicates using a logical or
 
