@@ -1,0 +1,14 @@
+invoke
+mypy>=0.740
+bumpversion>=0.5.3
+watchdog>=0.9.0
+pylint>=2.4.3
+coverage>=4.5.4
+Sphinx>=2.2.0
+recommonmark
+sphinx_rtd_theme
+sphinx-autodoc-typehints
+twine>=2.0.0
+pytest>=5.2.2
+pytest-runner>=5.1
+black
