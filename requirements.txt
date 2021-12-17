@@ -1,4 +1,4 @@
-slack_sdk>=3.0.0
-colorama>=0.4.1
+slack_sdk>=3.13.0
+colorama>=0.4.4
 python-dateutil>=2.8.0
-requests>=2.25.0
+requests>=2.26.0
