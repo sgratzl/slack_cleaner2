@@ -87,7 +87,7 @@ def _delete_messages(slack: SlackCleaner, args: Any):
     total = 0
     for channel in channels:
         with slack.log.group(channel.name):
-            for msg in channel.msgs(args.after, args.before):
+            for msg in channel.msgs(args.after, args.before, with_replies=True):
                 if not condition(msg):
                     continue
                 if args.perform:
