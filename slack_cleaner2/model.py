@@ -10,11 +10,11 @@ from enum import Enum
 from logging import Logger
 from time import sleep
 from functools import cached_property
+from datetime import datetime
 import requests
 from requests import Response
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-from datetime import datetime
 
 from .logger import SlackLogger
 

@@ -20,9 +20,9 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}-${{ hashFiles('requirements-dev.txt') }}
+          key: ${{ runner.os }}-pip2-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}-${{ hashFiles('requirements-dev.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+            ${{ runner.os }}-pip2-${{ matrix.python-version }}-
       - name: Install dependencies
         run: |
           pip install -r requirements.txt -r requirements-dev.txt
