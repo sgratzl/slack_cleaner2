@@ -10,6 +10,7 @@ from enum import Enum
 from logging import Logger
 from time import sleep
 from functools import cached_property
+from datetime import datetime
 import requests
 from requests import Response
 from slack_sdk import WebClient
@@ -345,9 +346,17 @@ class SlackMessage:
     """
     message timestamp
     """
+    dt: datetime
+    """
+    message timestamp as datetime
+    """
     thread_ts: Optional[float]
     """
     message timestamp for its thread
+    """
+    thread_dt: Optional[datetime]
+    """
+    message timestamp for its thread as datetime
     """
 
     text: str
@@ -404,6 +413,7 @@ class SlackMessage:
         :type slack: SlackCleaner
         """
         self.ts = float(entry["ts"])
+        self.dt = datetime.fromtimestamp(self.ts)
         self.text = entry["text"]
         self.channel = channel
         self._slack = slack
@@ -413,13 +423,14 @@ class SlackMessage:
         self.pinned_to = entry.get("pinned_to", False)
         self.has_replies = entry.get("reply_count", 0) > 0
         self.thread_ts = float(entry.get("thread_ts", entry["ts"]))
-        self.files = [SlackFile(f, slack) for f in entry.get("files", []) if f["mode"] != "tombstone"]
+        self.thread_dt = datetime.fromtimestamp(self.thread_ts)
+        self.files = [SlackFile(f, slack) for f in entry.get("files", []) if f.get("mode", "tombstone") != "tombstone"]
         self.is_tombstone = entry.get("subtype", None) == "tombstone"
 
     @cached_property
     def user(self) -> Optional[SlackUser]:
         """
-        user sending the messsage
+        user sending the message
         """
         return self._slack.users.resolve_user(self.user_id) if self.user_id else None
 
@@ -508,7 +519,7 @@ class SlackMessage:
     def __str__(self):
         user_name = "bot" if self.bot else self.user
         text = self.text[0:20] if len(self.text) > 20 else self.text
-        return f"{self.channel.name}:{self.ts} ({user_name}): {text}"
+        return f"{self.channel.name}:{self.dt.isoformat()} ({user_name}): {text}"
 
     def __repr__(self):
         return str(self)
