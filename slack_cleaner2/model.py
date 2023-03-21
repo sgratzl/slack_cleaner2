@@ -236,8 +236,8 @@ class SlackChannel:
         :return: generator of SlackMessage objects
         :rtype: SlackMessage
         """
-        after_time = _parse_time(after)
-        before_time = _parse_time(before)
+        after_time = _parse_time(after, self._slack.log)
+        before_time = _parse_time(before, self._slack.log)
         self._slack.log.debug("list msgs of %s (after=%s, before=%s)", self, after_time, before_time)
 
         messages = self._slack.safe_paginated_api(
@@ -269,8 +269,8 @@ class SlackChannel:
         :rtype: SlackMessage
         """
         ts = base_msg.json.get("thread_ts", base_msg.json["ts"])
-        after_time = _parse_time(after)
-        before_time = _parse_time(before)
+        after_time = _parse_time(after, self._slack.log)
+        before_time = _parse_time(before, self._slack.log)
         self._slack.log.debug("list replies of %s (after=%s, before=%s)", base_msg, after_time, before_time)
 
         messages = self._slack.safe_paginated_api(
@@ -726,8 +726,9 @@ class SlackFile:
         :rtype: SlackFile
         """
 
-        after = _parse_time(after)
-        before = _parse_time(before)
+        after = _parse_time(after, slack.log, as_int=True)
+        before = _parse_time(before, slack.log, as_int=True)
+
         if isinstance(user, SlackUser):
             user = user.id
         if isinstance(channel, SlackChannel):
@@ -776,7 +777,7 @@ class SlackFile:
         :rtype: Response
         """
         headers = {"Authorization": "Bearer " + self._slack.token}
-        return requests.get(self.json["url_private_download"], headers=headers, **kwargs)
+        return requests.get(self.json["url_private_download"], headers=headers, timeout=10, **kwargs)
 
     def download_json(self) -> JSONDict:
         """
@@ -886,16 +887,22 @@ class SlackFileReaction(ASlackReaction):
         return self._slack.call_rate_limited(lambda: self._slack.client.reactions_remove(name=self.name, file=self.file.id))
 
 
-def _parse_time(time_str: TimeIsh) -> Optional[str]:
+def _parse_time(time_str: TimeIsh, log: SlackLogger, as_int: bool = False) -> Optional[str]:
     if time_str is None:
         return None
     if isinstance(time_str, (int, float)):
         return str(time_str)
     try:
         if len(time_str) == 8:
-            return str(time.mktime(time.strptime(time_str, "%Y%m%d")))
-        return str(time.mktime(time.strptime(time_str, "%Y%m%d%H%M")))
+            time_d = time.strptime(time_str, "%Y%m%d")
+        else:
+            time_d = time.strptime(time_str, "%Y%m%d%H%M")
+        sec = time.mktime(time_d)
+        if as_int:
+            return str(int(sec))
+        return str(sec)
     except ValueError:
+        log.exception("error parsing date %s", time_str)
         return None
 
 
@@ -1315,8 +1322,8 @@ class SlackCleaner:
         def list_paging_page():
             if not next_page:
                 # initial call
-                return fun(dict(count=limit))
-            return fun(dict(page=next_page, count=limit))
+                return fun({"count": limit})
+            return fun({"page": next_page, "count": limit})
 
         while True:
             page, meta = self.safe_api(list_paging_page, [attr, "paging"], [[], {}], scopes, method)
@@ -1349,8 +1356,8 @@ class SlackCleaner:
         def list_cursor_page():
             if not next_cursor:
                 # initial call
-                return fun(dict(limit=limit))
-            return fun(dict(cursor=next_cursor, limit=limit))
+                return fun({"limit": limit})
+            return fun({"cursor": next_cursor, "limit": limit})
 
         while True:
             page, meta = self.safe_api(list_cursor_page, [attr, "response_metadata"], [[], {}], scopes, method)
