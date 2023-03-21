@@ -101,7 +101,6 @@ def _delete_files(slack: SlackCleaner, args: Any):
     """
     delete old files
     """
-    channels = _channels(slack, args)
 
     pred: List[PredicateFun] = []
 
@@ -119,14 +118,24 @@ def _delete_files(slack: SlackCleaner, args: Any):
 
     condition = and_(pred)
     total = 0
-    for channel in channels:
-        with slack.log.group(channel.name):
-            for sfile in channel.files(args.after, args.before, args.types):
-                if not condition(sfile):
-                    continue
-                if args.perform:
-                    sfile.delete(args.as_user)
-                total += 1
+
+    if  args.channel or args.group or args.direct or args.mpdirect:
+        channels = _channels(slack, args)
+        for channel in channels:
+            with slack.log.group(channel.name):
+                for sfile in channel.files(args.after, args.before, args.types):
+                    if not condition(sfile):
+                        continue
+                    if args.perform:
+                        sfile.delete(args.as_user)
+                    total += 1
+    else:
+        for sfile in slack.files(args.after, args.before, args.types):
+            if not condition(sfile):
+                continue
+            if args.perform:
+                sfile.delete(args.as_user)
+            total += 1
 
     slack.log.info("summary: %s", slack.log)
 
