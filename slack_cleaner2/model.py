@@ -726,8 +726,8 @@ class SlackFile:
         :rtype: SlackFile
         """
 
-        after = _parse_time(after, slack.log, as_int = True)
-        before = _parse_time(before, slack.log, as_int = True)
+        after = _parse_time(after, slack.log, as_int=True)
+        before = _parse_time(before, slack.log, as_int=True)
 
         if isinstance(user, SlackUser):
             user = user.id
@@ -777,7 +777,7 @@ class SlackFile:
         :rtype: Response
         """
         headers = {"Authorization": "Bearer " + self._slack.token}
-        return requests.get(self.json["url_private_download"], headers=headers, **kwargs)
+        return requests.get(self.json["url_private_download"], headers=headers, timeout=10, **kwargs)
 
     def download_json(self) -> JSONDict:
         """
@@ -1322,8 +1322,8 @@ class SlackCleaner:
         def list_paging_page():
             if not next_page:
                 # initial call
-                return fun(dict(count=limit))
-            return fun(dict(page=next_page, count=limit))
+                return fun({"count": limit})
+            return fun({"page": next_page, "count": limit})
 
         while True:
             page, meta = self.safe_api(list_paging_page, [attr, "paging"], [[], {}], scopes, method)
@@ -1356,8 +1356,8 @@ class SlackCleaner:
         def list_cursor_page():
             if not next_cursor:
                 # initial call
-                return fun(dict(limit=limit))
-            return fun(dict(cursor=next_cursor, limit=limit))
+                return fun({"limit": limit})
+            return fun({"cursor": next_cursor, "limit": limit})
 
         while True:
             page, meta = self.safe_api(list_cursor_page, [attr, "response_metadata"], [[], {}], scopes, method)

@@ -119,7 +119,7 @@ def _delete_files(slack: SlackCleaner, args: Any):
     condition = and_(pred)
     total = 0
 
-    if  args.channel or args.group or args.direct or args.mpdirect:
+    if args.channel or args.group or args.direct or args.mpdirect:
         channels = _channels(slack, args)
         for channel in channels:
             with slack.log.group(channel.name):
