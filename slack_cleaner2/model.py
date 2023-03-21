@@ -737,8 +737,6 @@ class SlackFile:
         slack.log.debug("list all files(user=%s, after=%s, before=%s, types=%s, channel=%s", user, after, before, types, channel)
 
         def fetch(kwargs):
-            print(kwargs)
-            print(after)
             return slack.client.files_list(user=user, ts_from=after, ts_to=before, types=types, channel=channel, show_files_hidden_by_limit=True, **kwargs)
 
         files = slack.safe_paging_api(fetch, "files", ["files:read"], "files.list")
