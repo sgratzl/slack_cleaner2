@@ -55,7 +55,7 @@ def _create_default_logger(to_file=False):
     log.setLevel(logging.DEBUG)
     # And always display on console
     out = logging.StreamHandler()
-    out.setLevel(logging.INFO)
+    out.setLevel(logging.DEBUG)
     log.addHandler(out)
     return log
 
@@ -76,6 +76,7 @@ class SlackLogger:
         self.warning = self._log.warning
         self.error = self._log.error
         self.critical = self._log.critical
+        self.exception = self._log.exception
         self.log = self._log.log
 
     def deleted(self, error: Optional[Exception] = None):
