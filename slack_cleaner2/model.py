@@ -726,8 +726,8 @@ class SlackFile:
         :rtype: SlackFile
         """
 
-        after = _parse_time(after, slack.log, as_int=True)
-        before = _parse_time(before, slack.log, as_int=True)
+        after = _parse_time(after, slack.log)
+        before = _parse_time(before, slack.log)
 
         if isinstance(user, SlackUser):
             user = user.id
@@ -887,20 +887,18 @@ class SlackFileReaction(ASlackReaction):
         return self._slack.call_rate_limited(lambda: self._slack.client.reactions_remove(name=self.name, file=self.file.id))
 
 
-def _parse_time(time_str: TimeIsh, log: SlackLogger, as_int: bool = False) -> Optional[str]:
+def _parse_time(time_str: TimeIsh, log: SlackLogger) -> Optional[str]:
     if time_str is None:
         return None
     if isinstance(time_str, (int, float)):
-        return str(time_str)
+        return str(int(round(time_str)))
     try:
         if len(time_str) == 8:
             time_d = time.strptime(time_str, "%Y%m%d")
         else:
             time_d = time.strptime(time_str, "%Y%m%d%H%M")
         sec = time.mktime(time_d)
-        if as_int:
-            return str(int(sec))
-        return str(sec)
+        return str(int(round(sec)))
     except ValueError:
         log.exception("error parsing date %s", time_str)
         return None
