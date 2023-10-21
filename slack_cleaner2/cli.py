@@ -200,7 +200,7 @@ def main():
     cli main entry
     """
     args = _args()
-    slack = SlackCleaner(args.token, args.log, args.rate)
+    slack = SlackCleaner(token=args.token, log_to_file=args.log, sleep_for=args.rate)
 
     if args.info:
         _show_infos(slack)
