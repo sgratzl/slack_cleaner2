@@ -625,7 +625,7 @@ class SlackMessageReaction(ASlackReaction):
         return str(self.msg)
 
     def _delete_impl(self):
-        return self._slack.call_rate_limited(lambda: self._slack.client.reactions_remove(self.name, channel=self.msg.channel.id, timestamp=self.msg.ts))
+        return self._slack.call_rate_limited(lambda: self._slack.client.reactions_remove(name=self.name, channel=self.msg.channel.id, timestamp=self.msg.ts))
 
 
 class SlackFile:
