@@ -18,7 +18,6 @@ from slack_sdk.errors import SlackApiError
 
 from .logger import SlackLogger
 
-
 JSONDict = Dict[str, Any]
 TimeIsh = Union[None, int, str, float]
 
@@ -251,7 +250,7 @@ class SlackChannel:
                 yield s_msg
 
                 if with_replies and s_msg.has_replies:
-                    yield from self.replies_to(s_msg, after=after_time, before=before_time, asc=asc)
+                    yield from self.replies_to(s_msg, after=after, before=before, asc=asc)
 
     def replies_to(self, base_msg: "SlackMessage", after: TimeIsh = None, before: TimeIsh = None, asc=False) -> Iterator["SlackMessage"]:
         """
@@ -900,7 +899,7 @@ def _parse_time(time_str: TimeIsh, log: SlackLogger) -> Optional[str]:
         sec = time.mktime(time_d)
         return str(int(round(sec)))
     except ValueError:
-        log.exception("error parsing date %s", time_str)
+        log.exception("error parsing date %s (%s)", time_str, type(time_str))
         return None
 
 
