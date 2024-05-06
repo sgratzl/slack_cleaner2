@@ -1324,8 +1324,7 @@ class SlackCleaner:
 
         while True:
             page, meta = self.safe_api(list_paging_page, [attr, "paging"], [[], {}], scopes, method)
-            for elem in page:
-                yield elem
+            yield from page
             if not meta:
                 return
             total = meta.get("total", 1)
@@ -1358,8 +1357,7 @@ class SlackCleaner:
 
         while True:
             page, meta = self.safe_api(list_cursor_page, [attr, "response_metadata"], [[], {}], scopes, method)
-            for elem in page:
-                yield elem
+            yield from page
             if not meta or not meta.get("next_cursor"):
                 break
             next_cursor = meta["next_cursor"]
@@ -1428,5 +1426,4 @@ class SlackCleaner:
         if not channels:
             channels = self.conversations
         for channel in channels:
-            for msg in channel.msgs(after=after, before=before, with_replies=with_replies):
-                yield msg
+            yield from channel.msgs(after=after, before=before, with_replies=with_replies)
