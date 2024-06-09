@@ -593,7 +593,7 @@ class ASlackReaction(ABC):
             return error
 
     def __str__(self):
-        return f"{self._context}:{self.name}({self.count})"
+        return f"{self._context()}:{self.name}({self.count})"
 
     def __repr__(self):
         return str(self)
