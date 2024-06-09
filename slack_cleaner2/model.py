@@ -501,7 +501,7 @@ class SlackMessage:
         message = self._slack.safe_api(
             lambda: self._slack.client.reactions_get(
                 channel=self.channel.id,
-                ts=self.ts,
+                timestamp=self.json["ts"],
                 full=True,
             ),
             "message",
@@ -593,7 +593,7 @@ class ASlackReaction(ABC):
             return error
 
     def __str__(self):
-        return f"{self._context}:{self.name}({self.count})"
+        return f"{self._context()}:{self.name}({self.count})"
 
     def __repr__(self):
         return str(self)
