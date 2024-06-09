@@ -501,7 +501,7 @@ class SlackMessage:
         message = self._slack.safe_api(
             lambda: self._slack.client.reactions_get(
                 channel=self.channel.id,
-                ts=self.ts,
+                timestamp=self.ts,
                 full=True,
             ),
             "message",
