@@ -1327,11 +1327,11 @@ class SlackCleaner:
             yield from page
             if not meta:
                 return
-            total = meta.get("total", 1)
-            current = meta.get("page", 1)
-            if current >= total:
+            total_pages = meta.get("pages", 1)
+            current_page = meta.get("page", 1)
+            if current_page >= total_pages:
                 break
-            next_page = current + 1
+            next_page = current_page + 1
 
     def safe_paginated_api(self, fun: Callable, attr: str, scopes: Optional[List[str]] = None, method: Optional[str] = None) -> Any:
         """
