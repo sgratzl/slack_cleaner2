@@ -625,7 +625,7 @@ class SlackMessageReaction(ASlackReaction):
         return str(self.msg)
 
     def _delete_impl(self):
-        return self._slack.call_rate_limited(lambda: self._slack.client.reactions_remove(name=self.name, channel=self.msg.channel.id, timestamp=self.msg.ts))
+        return self._slack.call_rate_limited(lambda: self._slack.client.reactions_remove(name=self.name, channel=self.msg.channel.id, timestamp=self.msg.json["ts"]))
 
 
 class SlackFile:
@@ -686,7 +686,7 @@ class SlackFile:
         :type slack: SlackCleaner
         """
         self.id = entry["id"]
-        self.hidden_by_limit = "hidden_by_limit" in entry
+        self.hidden_by_limit = "hidden_by_limit" in entry or entry.get("mode", "") == "hidden_by_limit"
         self.name = entry.get("name", "Unknown")
         self.title = entry.get("title", "Unknown")
         self.pinned_to = entry.get("pinned_to", False)
@@ -698,11 +698,13 @@ class SlackFile:
         self._slack = slack
 
     @cached_property
-    def user(self) -> SlackUser:
+    def user(self) -> Optional[SlackUser]:
         """
         user created this file
         """
-        return self._slack.users.resolve_user(self.json["user"])
+        if "user" in self.json:
+            return self._slack.users.resolve_user(self.json["user"])
+        return None
 
     @staticmethod
     def list(
