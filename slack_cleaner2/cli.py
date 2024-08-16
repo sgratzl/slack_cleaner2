@@ -154,7 +154,7 @@ def _args() -> Any:
     parser.add_argument("--quiet", action="store_true", help="Run quietly, does not log messages deleted")
 
     # Rate limit
-    parser.add_argument("--rate", type=float, help="Delay between API calls (in seconds)")
+    parser.add_argument("--rate", type=float, help="Delay between API calls (in seconds)", default=0)
 
     # user
     parser.add_argument("--as_user", action="store_true", help="Pass true to delete the message as the authed user. Bot users in this context are considered authed users.")
